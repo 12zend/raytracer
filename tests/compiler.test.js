@@ -7,8 +7,27 @@ const n = (id, value) => ({
     fields: {NUM: {value}},
     inputs: {}
 });
+// GPU definitions are My Blocks definitions whose prototype carries gpu="true".
+const prototype = (proccode, names) => ({
+    id: 'p',
+    opcode: 'procedures_prototype',
+    inputs: {},
+    mutation: {
+        proccode: `${proccode} %s %s`,
+        argumentnames: JSON.stringify([...names, 'uv', 'buffer']),
+        argumentids: JSON.stringify([...names, 'uv', 'buffer'].map((name, i) => `id${i}`)),
+        gpu: 'true'
+    }
+});
+const argument = (id, name, opcode = 'argument_reporter_string_number') => ({
+    id,
+    opcode,
+    fields: {VALUE: {value: name}},
+    inputs: {}
+});
 const sample = () => ({
-    d: {id: 'd', opcode: 'rtgpu_define', mutation: {params: '[]'}, next: 'r'},
+    d: {id: 'd', opcode: 'procedures_definition', inputs: {custom_block: {block: 'p'}}, next: 'r'},
+    p: prototype('kernel', []),
     r: {id: 'r', opcode: 'procedures_return', inputs: {VALUE: {block: 'v'}}},
     v: {
         id: 'v',
@@ -36,22 +55,18 @@ test('reject wrong return and unsupported CPU commands', () => {
     b.r.opcode = 'control_wait';
     assert.throws(() => new Compiler().compile(b, b.d), /Unsupported command/);
 });
-test('typed uniform parameters', () => {
+test('argument types follow the caller and uv, buffer are implicit', () => {
     const b = sample();
-    b.d.mutation.params = JSON.stringify([{name: 'tint', type: 'vec4'}]);
+    b.p = prototype('kernel %s %b', ['tint', 'on']);
     b.r.inputs.VALUE.block = 'a';
-    b.a = {
-        id: 'a',
-        opcode: 'rtgpu_argument',
-        fields: {NAME: {value: 'tint'}},
-        inputs: {}
-    };
-    assert.match(new Compiler().compile(b, b.d).source, /uniform vec4 arg0/);
-    b.d.mutation.params = JSON.stringify([{name: 'uv', type: 'vec2'}]);
-    assert.throws(
-        () => new Compiler().compile(b, b.d),
-        /Invalid GPU parameter/
-    );
+    b.a = argument('a', 'tint');
+    assert.match(new Compiler().compile(b, b.d, ['vec4', 'bool']).source, /uniform vec4 arg0;\nuniform bool arg1;/);
+    assert.throws(() => new Compiler().compile(b, b.d, ['float', 'bool']), /Expected vec4, got float/);
+    assert.throws(() => new Compiler().compile(b, b.d, ['vec4', 'float']), /must be boolean/);
+    b.a = argument('a', 'buffer');
+    assert.match(new Compiler().compile(b, b.d, ['vec4', 'bool']).source, /return texture\(previousBuffer,uv\);/);
+    b.p.mutation.argumentnames = JSON.stringify(['tint', 'on']);
+    assert.throws(() => new Compiler().compile(b, b.d), /implicit uv and buffer/);
 });
 test('bounded sample loops and cyclic input diagnostic', () => {
     const b = sample();

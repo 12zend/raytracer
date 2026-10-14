@@ -3,24 +3,48 @@ const assert=require('node:assert/strict');
 (async()=>{const browser=await chromium.launch({headless:true,args:['--no-proxy-server','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});try{
 const page=await browser.newPage({viewport:{width:1440,height:1000}});page.on('pageerror',e=>console.log('PAGEERROR',e.message));await page.goto(`${process.env.TEST_URL || 'http://127.0.0.1:8601'}/editor.html`,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.vm?.editingTarget&&window.vm.runtime.raytracer);await page.waitForTimeout(2000);
 await page.getByText('GPU',{exact:true}).first().click();
+// The GPU button opens the same editor as My Blocks.
 await page.getByText('Make a GPU block',{exact:true}).click();
-await page.getByLabel('Block name').fill('UI kernel');
-await page.getByRole('button',{name:'Add argument',exact:true}).click();
-await page.getByLabel('Argument 1 name').fill('tint');
-await page.getByLabel('Argument 1 type').selectOption('vec4');
-await page.getByRole('button',{name:'Create GPU definition',exact:true}).click();
-await page.waitForFunction(()=>Object.values(window.vm.editingTarget.blocks._blocks).some(b=>b.opcode==='rtgpu_define'&&b.mutation?.name==='UI kernel'));
+await page.locator('[class*=custom-procedures_modal-content]').waitFor();
+await page.waitForTimeout(300);
+await page.keyboard.type('UI kernel');
+await page.getByText('number or text',{exact:true}).click();
+await page.waitForTimeout(200);
+await page.keyboard.type('tint');
+await page.getByRole('button',{name:'OK',exact:true}).click();
+await page.waitForFunction(()=>Object.values(window.vm.editingTarget.blocks._blocks).some(b=>b.opcode==='procedures_prototype'&&b.mutation?.gpu==='true'));
+const created=await page.evaluate(()=>{const p=Object.values(window.vm.editingTarget.blocks._blocks).find(b=>b.opcode==='procedures_prototype');return {proccode:p.mutation.proccode,names:JSON.parse(p.mutation.argumentnames)};});
+console.log('created',created);assert.equal(created.proccode,'UI kernel %s %s %s');assert.deepEqual(created.names,['tint','uv','buffer']);
+await page.locator('.blocklyBlockCanvas').getByText('define GPU',{exact:true}).first().waitFor();
+await page.locator('.blocklyFlyout').getByText('UI kernel',{exact:true}).first().waitFor();
+// My Blocks must not list GPU definitions; the GPU caller hides uv and names the output buffer.
+const flyout=await page.evaluate(()=>{const fb=window.vm.runtime.flyoutBlocks;const call=Object.values(fb._blocks).find(b=>b.opcode==='rtgpu_call'&&b.mutation.proccode==='UI kernel %s %s %s');const ids=JSON.parse(call.mutation.argumentids);
+ const procedures=Object.values(fb._blocks).filter(b=>b.opcode==='procedures_call'&&b.mutation.proccode.startsWith('UI kernel')).length;
+ return {inputs:Object.keys(call.inputs).map(id=>ids.indexOf(id)),buffer:fb.getBlock(call.inputs[ids[2]].block).fields.TEXT.value,procedures};});
+console.log('flyout',flyout);assert.deepEqual(flyout,{inputs:[0,2],buffer:'main',procedures:0});
+// Editing reopens the same editor without uv/buffer and restores them afterwards.
+await page.locator('.blocklyBlockCanvas').getByText('define GPU',{exact:true}).first().click({button:'right'});
+await page.locator('.goog-menuitem-content',{hasText:'Edit'}).click();
+await page.locator('[class*=custom-procedures_modal-content]').waitFor();
+const editorArgs=await page.evaluate(()=>[...document.querySelectorAll('[class*=custom-procedures_workspace] .blocklyEditableText text, [class*=custom-procedures_workspace] input')].map(t=>t.textContent||t.value));
+await page.getByText('boolean',{exact:true}).click();await page.waitForTimeout(200);await page.keyboard.type('on');
+await page.getByRole('button',{name:'OK',exact:true}).click();
+await page.waitForFunction(()=>Object.values(window.vm.editingTarget.blocks._blocks).some(b=>b.opcode==='procedures_prototype'&&b.mutation.proccode==='UI kernel %s %b %s %s'));
+const edited=await page.evaluate(()=>JSON.parse(Object.values(window.vm.editingTarget.blocks._blocks).find(b=>b.opcode==='procedures_prototype').mutation.argumentnames));
+console.log('edited',editorArgs,edited);assert.ok(!editorArgs.join().includes('uv'));assert.deepEqual(edited,['tint','on','uv','buffer']);
 const result=await page.evaluate(async()=>{
  const vm=window.vm,rt=vm.runtime.raytracer,target=vm.editingTarget;
  const errors=[];vm.runtime.on('RAYTRACER_ERROR',e=>errors.push(e));
+ const mutation={tagName:'mutation',children:[],proccode:'gradient %s %s %s',argumentids:'["tint-id","uv-id","buffer-id"]',argumentnames:'["tint","uv","buffer"]',argumentdefaults:'["","",""]',warp:'false',gpu:'true'};
  const blocks=[
- {id:'gpu-test',opcode:'rtgpu_define',mutation:{tagName:'mutation',children:[],name:'gradient',params:'[{"name":"gain","type":"float"}]'},next:'return-test',topLevel:true},
- {id:'return-test',opcode:'procedures_return',inputs:{VALUE:{name:'VALUE',block:'color-test',shadow:null}},parent:'gpu-test'},
- {id:'color-test',opcode:'rtobject_vec4',inputs:{X:{block:'gain-test'},Y:{block:'zero-test'},Z:{block:'zero-test'},W:{block:'one-test'}},parent:'return-test'},
- {id:'gain-test',opcode:'rtgpu_argument',fields:{NAME:{name:'NAME',value:'gain'}},parent:'color-test'},
- ...[['zero-test',0],['one-test',1],['gain-value',0.25]].map(([id,value])=>({id,opcode:'math_number',fields:{NUM:{name:'NUM',value:String(value)}},shadow:true,parent:id==='gain-value'?'call-test':'color-test'})),
+ {id:'gpu-test',opcode:'procedures_definition',inputs:{custom_block:{name:'custom_block',block:'proto-test',shadow:'proto-test'}},next:'return-test',topLevel:true},
+ {id:'proto-test',opcode:'procedures_prototype',shadow:true,parent:'gpu-test',mutation},
+ {id:'return-test',opcode:'procedures_return',inputs:{VALUE:{name:'VALUE',block:'tint-test',shadow:null}},parent:'gpu-test'},
+ {id:'tint-test',opcode:'argument_reporter_string_number',fields:{VALUE:{name:'VALUE',value:'tint'}},parent:'return-test'},
+ {id:'color-value',opcode:'rtobject_vec4',inputs:{X:{block:'gain-value'},Y:{block:'zero-value'},Z:{block:'zero-value'},W:{block:'one-value'}},parent:'call-test'},
+ ...[['zero-value',0],['one-value',1],['gain-value',0.25]].map(([id,value])=>({id,opcode:'math_number',fields:{NUM:{name:'NUM',value:String(value)}},shadow:true,parent:'color-value'})),
  {id:'flag-test',opcode:'event_whenflagclicked',topLevel:true,next:'call-test'},
- {id:'call-test',opcode:'rtgpu_call',parent:'flag-test',next:'render-test',mutation:{tagName:'mutation',children:[],name:'gradient',params:'[{"name":"gain","type":"float"}]'},inputs:{BUFFER:{block:'buffer-name'},ARG0:{block:'gain-value'}}},
+ {id:'call-test',opcode:'rtgpu_call',parent:'flag-test',next:'render-test',mutation:{tagName:'mutation',children:[],proccode:mutation.proccode,argumentids:mutation.argumentids,gpu:'true'},inputs:{'buffer-id':{name:'buffer-id',block:'buffer-name'},'tint-id':{name:'tint-id',block:'color-value'}}},
  {id:'buffer-name',opcode:'text',fields:{TEXT:{name:'TEXT',value:'main'}},shadow:true,parent:'call-test'},
  {id:'render-test',opcode:'rtbuffer_render',parent:'call-test',inputs:{NAME:{block:'render-name'}}},
  {id:'render-name',opcode:'text',fields:{TEXT:{name:'TEXT',value:'main'}},shadow:true,parent:'render-test'}
