@@ -39,6 +39,12 @@ class RayRuntime {
             }
             return null;
         };
+        // Asset dropdowns (Add Object, Apply motion) default to the first asset.
+        this.scene.onItemsChange = () => {
+            if (runtime.extensionManager && runtime.extensionManager.isExtensionLoaded('rt3d')) {
+                runtime.extensionManager.refreshBlocks('rt3d');
+            }
+        };
         this.buffers = null;
         this.sceneVersion = -1;
         this.kernels = new WeakMap();

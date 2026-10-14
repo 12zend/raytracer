@@ -43,6 +43,11 @@ class MediaScene {
         this.builtVersion = -1;
         // Optional (name) => Uint8Array resolver for textures stored outside Media.
         this.companion = null;
+        // Optional callback when the asset list changes (import, rename, remove, restore).
+        this.onItemsChange = null;
+    }
+    itemsChanged () {
+        if (this.onItemsChange) this.onItemsChange();
     }
     async import (name, bytes) {
         const format = name.split('.').pop()
@@ -59,6 +64,7 @@ class MediaScene {
         };
         await this.load(item);
         this.items.push(item);
+        this.itemsChanged();
         return item;
     }
     async load (item) {
@@ -355,6 +361,7 @@ class MediaScene {
             this.items.push(item);
         }
         this.clear();
+        this.itemsChanged();
     }
     release (i) {
         if (i.url) URL.revokeObjectURL(i.url);
@@ -386,6 +393,7 @@ class MediaScene {
         this.release(item);
         this.items = this.items.filter(i => i !== item);
         this.clear();
+        this.itemsChanged();
     }
     dispose () {
         for (const i of this.items) this.release(i);

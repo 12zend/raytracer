@@ -54,7 +54,7 @@ const definitions = {
                 'add',
                 'Add Object [MEDIA] position: [POS] rotation: [ROTATION] [ORDER] scale [SIZE] % [SCALE] frame: [FRAME]',
                 {
-                    MEDIA: arg(),
+                    MEDIA: {type: 'string', menu: 'media'},
                     POS: arg(),
                     ROTATION: arg(),
                     ORDER: {type: 'string', menu: 'order', defaultValue: 'XYZ'},
@@ -66,14 +66,17 @@ const definitions = {
             command(
                 'motion',
                 'Apply motion / pose [MEDIA] to object [INDEX] frame [FRAME]',
-                {MEDIA: arg(), INDEX: number(), FRAME: number()}
+                {MEDIA: {type: 'string', menu: 'motion'}, INDEX: number(), FRAME: number()}
             )
         ],
         menus: {
             order: {
                 acceptReporters: false,
                 items: ['XYZ', 'XZY', 'YXZ', 'YZX', 'ZXY', 'ZYX']
-            }
+            },
+            // Listed from the costume list when the dropdown opens (see menuItems).
+            media: {acceptReporters: true, items: 'mediaMenu'},
+            motion: {acceptReporters: true, items: 'motionMenu'}
         }
     },
     rtray: {
@@ -132,6 +135,17 @@ const vec3 = (v, label) => {
         throw new RaytracerError(`${label} must be a vec3. Use the vec3 block.`);
     }
     return xyz(v).map(Number);
+};
+/**
+ * Dynamic menus, by menu name. Each returns names from the costume list.
+ * Scene assets (models, video, motion) are shared by all sprites; costumes belong to the target.
+ */
+const menuItems = {
+    media: (r, target) => Array.from(new Set([
+        ...r.scene.items.filter(item => item.object || item.element).map(item => item.name),
+        ...(target ? target.getCostumes().map(costume => costume.name) : [])
+    ])),
+    motion: r => r.scene.items.filter(item => item.motion || item.pose).map(item => item.name)
 };
 const validObject = v =>
     (v && typeof v === 'object' ? v : Object.create(null));
@@ -238,9 +252,24 @@ module.exports = Object.fromEntries(
                     this[name] = (a, u) =>
                         this.rt.safe(() => fn(a, this.rt, u), u);
                 }
+                for (const [name, fn] of Object.entries(menuItems)) {
+                    this[`${name}Menu`] = targetId => {
+                        const items = fn(this.rt, this.rt.runtime.getTargetById(targetId));
+                        return items.length ? items : [{text: '(none)', value: ''}];
+                    };
+                }
             }
             getInfo () {
-                return {id, color2: info.color1, color3: info.color1, ...info};
+                // Dropdowns start at the first asset; refreshed when the costume list changes.
+                const target = this.rt.runtime.getEditingTarget();
+                const blocks = info.blocks.map(block => (block.arguments ? {
+                    ...block,
+                    arguments: Object.fromEntries(Object.entries(block.arguments).map(([key, a]) => [
+                        key,
+                        menuItems[a.menu] ? {...a, defaultValue: menuItems[a.menu](this.rt, target)[0] || ''} : a
+                    ]))
+                } : block));
+                return {id, color2: info.color1, color3: info.color1, ...info, blocks};
             }
         }
     ])
