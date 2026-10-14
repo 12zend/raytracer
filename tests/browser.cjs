@@ -6,6 +6,7 @@ await page.getByText('GPU',{exact:true}).first().click();
 // The GPU button opens the same editor as My Blocks.
 await page.getByText('Make a GPU block',{exact:true}).click();
 await page.locator('[class*=custom-procedures_modal-content]').waitFor();
+assert.equal(await page.getByText('Run without screen refresh').count(),0);
 await page.waitForTimeout(300);
 await page.keyboard.type('UI kernel');
 await page.getByText('number or text',{exact:true}).click();
@@ -26,11 +27,16 @@ console.log('flyout',flyout);assert.deepEqual(flyout,{inputs:[0,2],buffer:'main'
 await page.locator('.blocklyBlockCanvas').getByText('define GPU',{exact:true}).first().click({button:'right'});
 await page.locator('.goog-menuitem-content',{hasText:'Edit'}).click();
 await page.locator('[class*=custom-procedures_modal-content]').waitFor();
+assert.equal(await page.getByText('Run without screen refresh').count(),0);
 const editorArgs=await page.evaluate(()=>[...document.querySelectorAll('[class*=custom-procedures_workspace] .blocklyEditableText text, [class*=custom-procedures_workspace] input')].map(t=>t.textContent||t.value));
 await page.getByText('boolean',{exact:true}).click();await page.waitForTimeout(200);await page.keyboard.type('on');
 await page.getByRole('button',{name:'OK',exact:true}).click();
 await page.waitForFunction(()=>Object.values(window.vm.editingTarget.blocks._blocks).some(b=>b.opcode==='procedures_prototype'&&b.mutation.proccode==='UI kernel %s %b %s %s'));
 const edited=await page.evaluate(()=>JSON.parse(Object.values(window.vm.editingTarget.blocks._blocks).find(b=>b.opcode==='procedures_prototype').mutation.argumentnames));
+await page.locator('.scratchCategoryMenuItemLabel',{hasText:'My Blocks'}).click();await page.waitForTimeout(500);
+await page.locator('.blocklyFlyoutButton',{hasText:'Make a Block'}).click();
+await page.getByText('Run without screen refresh').waitFor();
+await page.getByRole('button',{name:'Cancel',exact:true}).click();
 console.log('edited',editorArgs,edited);assert.ok(!editorArgs.join().includes('uv'));assert.deepEqual(edited,['tint','on','uv','buffer']);
 const result=await page.evaluate(async()=>{
  const vm=window.vm,rt=vm.runtime.raytracer,target=vm.editingTarget;
