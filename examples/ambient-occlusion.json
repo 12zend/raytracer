@@ -741,7 +741,7 @@
         },
         "b45": {
           "opcode": "data_setvariableto",
-          "next": "b132",
+          "next": "b130",
           "parent": "b25",
           "inputs": {
             "VALUE": [
@@ -1119,7 +1119,7 @@
         "b69": {
           "opcode": "data_setvariableto",
           "next": "b57",
-          "parent": "b110",
+          "parent": "b109",
           "inputs": {
             "VALUE": [
               1,
@@ -1441,7 +1441,7 @@
         },
         "b89": {
           "opcode": "data_setvariableto",
-          "next": "b96",
+          "next": "b95",
           "parent": "b57",
           "inputs": {
             "VALUE": [
@@ -1461,7 +1461,7 @@
         "b90": {
           "opcode": "data_variable",
           "next": null,
-          "parent": "b92",
+          "parent": "b91",
           "inputs": {},
           "fields": {
             "VARIABLE": [
@@ -1473,28 +1473,25 @@
           "topLevel": false
         },
         "b91": {
-          "opcode": "text",
+          "opcode": "rtray_hit",
           "next": null,
           "parent": "b92",
-          "inputs": {},
-          "fields": {
-            "TEXT": [
-              "hit"
+          "inputs": {
+            "RAY": [
+              1,
+              "b90"
             ]
           },
-          "shadow": true,
+          "fields": {},
+          "shadow": false,
           "topLevel": false
         },
         "b92": {
-          "opcode": "rtobject_get",
+          "opcode": "operator_not",
           "next": null,
-          "parent": "b93",
+          "parent": "b95",
           "inputs": {
-            "OBJ": [
-              1,
-              "b90"
-            ],
-            "PROP": [
+            "OPERAND": [
               1,
               "b91"
             ]
@@ -1504,23 +1501,9 @@
           "topLevel": false
         },
         "b93": {
-          "opcode": "operator_not",
-          "next": null,
-          "parent": "b96",
-          "inputs": {
-            "OPERAND": [
-              1,
-              "b92"
-            ]
-          },
-          "fields": {},
-          "shadow": false,
-          "topLevel": false
-        },
-        "b94": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b95",
+          "parent": "b94",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -1530,14 +1513,14 @@
           "shadow": true,
           "topLevel": false
         },
-        "b95": {
+        "b94": {
           "opcode": "data_changevariableby",
           "next": null,
-          "parent": "b96",
+          "parent": "b95",
           "inputs": {
             "VALUE": [
               1,
-              "b94"
+              "b93"
             ]
           },
           "fields": {
@@ -1549,28 +1532,28 @@
           "shadow": false,
           "topLevel": false
         },
-        "b96": {
+        "b95": {
           "opcode": "control_if",
           "next": null,
           "parent": "b89",
           "inputs": {
             "CONDITION": [
               1,
-              "b93"
+              "b92"
             ],
             "SUBSTACK": [
               1,
-              "b95"
+              "b94"
             ]
           },
           "fields": {},
           "shadow": false,
           "topLevel": false
         },
-        "b97": {
+        "b96": {
           "opcode": "data_variable",
           "next": null,
-          "parent": "b99",
+          "parent": "b98",
           "inputs": {},
           "fields": {
             "VARIABLE": [
@@ -1581,10 +1564,10 @@
           "shadow": false,
           "topLevel": false
         },
-        "b98": {
+        "b97": {
           "opcode": "text",
           "next": null,
-          "parent": "b99",
+          "parent": "b98",
           "inputs": {},
           "fields": {
             "TEXT": [
@@ -1594,28 +1577,28 @@
           "shadow": true,
           "topLevel": false
         },
-        "b99": {
+        "b98": {
           "opcode": "rtobject_get",
           "next": null,
-          "parent": "b105",
+          "parent": "b104",
           "inputs": {
             "OBJ": [
               1,
-              "b97"
+              "b96"
             ],
             "PROP": [
               1,
-              "b98"
+              "b97"
             ]
           },
           "fields": {},
           "shadow": false,
           "topLevel": false
         },
-        "b100": {
+        "b99": {
           "opcode": "data_variable",
           "next": null,
-          "parent": "b102",
+          "parent": "b101",
           "inputs": {},
           "fields": {
             "VARIABLE": [
@@ -1626,10 +1609,10 @@
           "shadow": false,
           "topLevel": false
         },
-        "b101": {
+        "b100": {
           "opcode": "text",
           "next": null,
-          "parent": "b102",
+          "parent": "b101",
           "inputs": {},
           "fields": {
             "TEXT": [
@@ -1639,28 +1622,28 @@
           "shadow": true,
           "topLevel": false
         },
-        "b102": {
+        "b101": {
           "opcode": "rtobject_get",
           "next": null,
-          "parent": "b104",
+          "parent": "b103",
           "inputs": {
             "OBJ": [
               1,
-              "b100"
+              "b99"
             ],
             "PROP": [
               1,
-              "b101"
+              "b100"
             ]
           },
           "fields": {},
           "shadow": false,
           "topLevel": false
         },
-        "b103": {
+        "b102": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b104",
+          "parent": "b103",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -1670,14 +1653,32 @@
           "shadow": true,
           "topLevel": false
         },
-        "b104": {
+        "b103": {
           "opcode": "operator_multiply",
+          "next": null,
+          "parent": "b104",
+          "inputs": {
+            "NUM1": [
+              1,
+              "b101"
+            ],
+            "NUM2": [
+              1,
+              "b102"
+            ]
+          },
+          "fields": {},
+          "shadow": false,
+          "topLevel": false
+        },
+        "b104": {
+          "opcode": "operator_add",
           "next": null,
           "parent": "b105",
           "inputs": {
             "NUM1": [
               1,
-              "b102"
+              "b98"
             ],
             "NUM2": [
               1,
@@ -1689,31 +1690,13 @@
           "topLevel": false
         },
         "b105": {
-          "opcode": "operator_add",
-          "next": null,
-          "parent": "b106",
-          "inputs": {
-            "NUM1": [
-              1,
-              "b99"
-            ],
-            "NUM2": [
-              1,
-              "b104"
-            ]
-          },
-          "fields": {},
-          "shadow": false,
-          "topLevel": false
-        },
-        "b106": {
           "opcode": "data_setvariableto",
-          "next": "b108",
-          "parent": "b132",
+          "next": "b107",
+          "parent": "b130",
           "inputs": {
             "VALUE": [
               1,
-              "b105"
+              "b104"
             ]
           },
           "fields": {
@@ -1725,10 +1708,10 @@
           "shadow": false,
           "topLevel": false
         },
-        "b107": {
+        "b106": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b108",
+          "parent": "b107",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -1738,14 +1721,14 @@
           "shadow": true,
           "topLevel": false
         },
-        "b108": {
+        "b107": {
           "opcode": "data_setvariableto",
-          "next": "b110",
-          "parent": "b106",
+          "next": "b109",
+          "parent": "b105",
           "inputs": {
             "VALUE": [
               1,
-              "b107"
+              "b106"
             ]
           },
           "fields": {
@@ -1757,10 +1740,10 @@
           "shadow": false,
           "topLevel": false
         },
-        "b109": {
+        "b108": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b110",
+          "parent": "b109",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -1770,14 +1753,14 @@
           "shadow": true,
           "topLevel": false
         },
-        "b110": {
+        "b109": {
           "opcode": "control_repeat",
-          "next": "b122",
-          "parent": "b108",
+          "next": "b121",
+          "parent": "b107",
           "inputs": {
             "TIMES": [
               1,
-              "b109"
+              "b108"
             ],
             "SUBSTACK": [
               1,
@@ -1788,10 +1771,10 @@
           "shadow": false,
           "topLevel": false
         },
-        "b111": {
+        "b110": {
           "opcode": "data_variable",
           "next": null,
-          "parent": "b113",
+          "parent": "b112",
           "inputs": {},
           "fields": {
             "VARIABLE": [
@@ -1802,10 +1785,10 @@
           "shadow": false,
           "topLevel": false
         },
-        "b112": {
+        "b111": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b113",
+          "parent": "b112",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -1815,42 +1798,42 @@
           "shadow": true,
           "topLevel": false
         },
-        "b113": {
+        "b112": {
           "opcode": "operator_divide",
           "next": null,
-          "parent": "b121",
+          "parent": "b120",
           "inputs": {
             "NUM1": [
               1,
-              "b111"
+              "b110"
             ],
             "NUM2": [
               1,
-              "b112"
+              "b111"
             ]
           },
           "fields": {},
+          "shadow": false,
+          "topLevel": false
+        },
+        "b113": {
+          "opcode": "data_variable",
+          "next": null,
+          "parent": "b115",
+          "inputs": {},
+          "fields": {
+            "VARIABLE": [
+              "visible",
+              "visible"
+            ]
+          },
           "shadow": false,
           "topLevel": false
         },
         "b114": {
-          "opcode": "data_variable",
-          "next": null,
-          "parent": "b116",
-          "inputs": {},
-          "fields": {
-            "VARIABLE": [
-              "visible",
-              "visible"
-            ]
-          },
-          "shadow": false,
-          "topLevel": false
-        },
-        "b115": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b116",
+          "parent": "b115",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -1860,42 +1843,42 @@
           "shadow": true,
           "topLevel": false
         },
-        "b116": {
+        "b115": {
           "opcode": "operator_divide",
           "next": null,
-          "parent": "b121",
+          "parent": "b120",
           "inputs": {
             "NUM1": [
               1,
-              "b114"
+              "b113"
             ],
             "NUM2": [
               1,
-              "b115"
+              "b114"
             ]
           },
           "fields": {},
+          "shadow": false,
+          "topLevel": false
+        },
+        "b116": {
+          "opcode": "data_variable",
+          "next": null,
+          "parent": "b118",
+          "inputs": {},
+          "fields": {
+            "VARIABLE": [
+              "visible",
+              "visible"
+            ]
+          },
           "shadow": false,
           "topLevel": false
         },
         "b117": {
-          "opcode": "data_variable",
-          "next": null,
-          "parent": "b119",
-          "inputs": {},
-          "fields": {
-            "VARIABLE": [
-              "visible",
-              "visible"
-            ]
-          },
-          "shadow": false,
-          "topLevel": false
-        },
-        "b118": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b119",
+          "parent": "b118",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -1905,28 +1888,28 @@
           "shadow": true,
           "topLevel": false
         },
-        "b119": {
+        "b118": {
           "opcode": "operator_divide",
           "next": null,
-          "parent": "b121",
+          "parent": "b120",
           "inputs": {
             "NUM1": [
               1,
-              "b117"
+              "b116"
             ],
             "NUM2": [
               1,
-              "b118"
+              "b117"
             ]
           },
           "fields": {},
           "shadow": false,
           "topLevel": false
         },
-        "b120": {
+        "b119": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b121",
+          "parent": "b120",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -1936,24 +1919,38 @@
           "shadow": true,
           "topLevel": false
         },
-        "b121": {
+        "b120": {
           "opcode": "rtobject_vec4",
           "next": null,
-          "parent": "b122",
+          "parent": "b121",
           "inputs": {
             "X": [
               1,
-              "b113"
+              "b112"
             ],
             "Y": [
               1,
-              "b116"
+              "b115"
             ],
             "Z": [
               1,
-              "b119"
+              "b118"
             ],
             "W": [
+              1,
+              "b119"
+            ]
+          },
+          "fields": {},
+          "shadow": false,
+          "topLevel": false
+        },
+        "b121": {
+          "opcode": "procedures_return",
+          "next": null,
+          "parent": "b109",
+          "inputs": {
+            "VALUE": [
               1,
               "b120"
             ]
@@ -1963,23 +1960,9 @@
           "topLevel": false
         },
         "b122": {
-          "opcode": "procedures_return",
-          "next": null,
-          "parent": "b110",
-          "inputs": {
-            "VALUE": [
-              1,
-              "b121"
-            ]
-          },
-          "fields": {},
-          "shadow": false,
-          "topLevel": false
-        },
-        "b123": {
           "opcode": "data_variable",
           "next": null,
-          "parent": "b125",
+          "parent": "b123",
           "inputs": {},
           "fields": {
             "VARIABLE": [
@@ -1990,41 +1973,24 @@
           "shadow": false,
           "topLevel": false
         },
-        "b124": {
-          "opcode": "text",
+        "b123": {
+          "opcode": "rtray_hit",
           "next": null,
-          "parent": "b125",
-          "inputs": {},
-          "fields": {
-            "TEXT": [
-              "hit"
-            ]
-          },
-          "shadow": true,
-          "topLevel": false
-        },
-        "b125": {
-          "opcode": "rtobject_get",
-          "next": null,
-          "parent": "b132",
+          "parent": "b130",
           "inputs": {
-            "OBJ": [
+            "RAY": [
               1,
-              "b123"
-            ],
-            "PROP": [
-              1,
-              "b124"
+              "b122"
             ]
           },
           "fields": {},
           "shadow": false,
           "topLevel": false
         },
-        "b126": {
+        "b124": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b130",
+          "parent": "b128",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -2034,10 +2000,10 @@
           "shadow": true,
           "topLevel": false
         },
-        "b127": {
+        "b125": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b130",
+          "parent": "b128",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -2047,10 +2013,10 @@
           "shadow": true,
           "topLevel": false
         },
-        "b128": {
+        "b126": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b130",
+          "parent": "b128",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -2060,10 +2026,10 @@
           "shadow": true,
           "topLevel": false
         },
-        "b129": {
+        "b127": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b130",
+          "parent": "b128",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -2073,24 +2039,60 @@
           "shadow": true,
           "topLevel": false
         },
-        "b130": {
+        "b128": {
           "opcode": "rtobject_vec4",
           "next": null,
-          "parent": "b131",
+          "parent": "b129",
           "inputs": {
             "X": [
               1,
-              "b126"
+              "b124"
             ],
             "Y": [
               1,
-              "b127"
+              "b125"
             ],
             "Z": [
               1,
-              "b128"
+              "b126"
             ],
             "W": [
+              1,
+              "b127"
+            ]
+          },
+          "fields": {},
+          "shadow": false,
+          "topLevel": false
+        },
+        "b129": {
+          "opcode": "procedures_return",
+          "next": null,
+          "parent": "b130",
+          "inputs": {
+            "VALUE": [
+              1,
+              "b128"
+            ]
+          },
+          "fields": {},
+          "shadow": false,
+          "topLevel": false
+        },
+        "b130": {
+          "opcode": "control_if_else",
+          "next": null,
+          "parent": "b45",
+          "inputs": {
+            "CONDITION": [
+              1,
+              "b123"
+            ],
+            "SUBSTACK": [
+              1,
+              "b105"
+            ],
+            "SUBSTACK2": [
               1,
               "b129"
             ]
@@ -2100,44 +2102,8 @@
           "topLevel": false
         },
         "b131": {
-          "opcode": "procedures_return",
-          "next": null,
-          "parent": "b132",
-          "inputs": {
-            "VALUE": [
-              1,
-              "b130"
-            ]
-          },
-          "fields": {},
-          "shadow": false,
-          "topLevel": false
-        },
-        "b132": {
-          "opcode": "control_if_else",
-          "next": null,
-          "parent": "b45",
-          "inputs": {
-            "CONDITION": [
-              1,
-              "b125"
-            ],
-            "SUBSTACK": [
-              1,
-              "b106"
-            ],
-            "SUBSTACK2": [
-              1,
-              "b131"
-            ]
-          },
-          "fields": {},
-          "shadow": false,
-          "topLevel": false
-        },
-        "b133": {
           "opcode": "event_whenflagclicked",
-          "next": "b136",
+          "next": "b134",
           "parent": null,
           "inputs": {},
           "fields": {},
@@ -2146,10 +2112,10 @@
           "x": 20,
           "y": 40
         },
-        "b134": {
+        "b132": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b136",
+          "parent": "b134",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -2159,10 +2125,10 @@
           "shadow": true,
           "topLevel": false
         },
-        "b135": {
+        "b133": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b136",
+          "parent": "b134",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -2172,28 +2138,28 @@
           "shadow": true,
           "topLevel": false
         },
-        "b136": {
+        "b134": {
           "opcode": "rtbuffer_resolution",
-          "next": "b138",
-          "parent": "b133",
+          "next": "b136",
+          "parent": "b131",
           "inputs": {
             "W": [
               1,
-              "b134"
+              "b132"
             ],
             "H": [
               1,
-              "b135"
+              "b133"
             ]
           },
           "fields": {},
           "shadow": false,
           "topLevel": false
         },
-        "b137": {
+        "b135": {
           "opcode": "text",
           "next": null,
-          "parent": "b138",
+          "parent": "b136",
           "inputs": {},
           "fields": {
             "TEXT": [
@@ -2203,33 +2169,33 @@
           "shadow": true,
           "topLevel": false
         },
-        "b138": {
+        "b136": {
           "opcode": "rtbuffer_add",
-          "next": "b139",
-          "parent": "b136",
+          "next": "b137",
+          "parent": "b134",
           "inputs": {
             "NAME": [
               1,
-              "b137"
+              "b135"
             ]
           },
           "fields": {},
           "shadow": false,
           "topLevel": false
         },
-        "b139": {
+        "b137": {
           "opcode": "rt3d_clear",
-          "next": "b156",
-          "parent": "b138",
+          "next": "b154",
+          "parent": "b136",
           "inputs": {},
           "fields": {},
           "shadow": false,
           "topLevel": false
         },
-        "b140": {
+        "b138": {
           "opcode": "text",
           "next": null,
-          "parent": "b156",
+          "parent": "b154",
           "inputs": {},
           "fields": {
             "TEXT": [
@@ -2239,10 +2205,36 @@
           "shadow": true,
           "topLevel": false
         },
+        "b139": {
+          "opcode": "math_number",
+          "next": null,
+          "parent": "b142",
+          "inputs": {},
+          "fields": {
+            "NUM": [
+              "0"
+            ]
+          },
+          "shadow": true,
+          "topLevel": false
+        },
+        "b140": {
+          "opcode": "math_number",
+          "next": null,
+          "parent": "b142",
+          "inputs": {},
+          "fields": {
+            "NUM": [
+              "0"
+            ]
+          },
+          "shadow": true,
+          "topLevel": false
+        },
         "b141": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b144",
+          "parent": "b142",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -2253,22 +2245,31 @@
           "topLevel": false
         },
         "b142": {
-          "opcode": "math_number",
+          "opcode": "rtobject_vec3",
           "next": null,
-          "parent": "b144",
-          "inputs": {},
-          "fields": {
-            "NUM": [
-              "0"
+          "parent": "b154",
+          "inputs": {
+            "X": [
+              1,
+              "b139"
+            ],
+            "Y": [
+              1,
+              "b140"
+            ],
+            "Z": [
+              1,
+              "b141"
             ]
           },
-          "shadow": true,
+          "fields": {},
+          "shadow": false,
           "topLevel": false
         },
         "b143": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b144",
+          "parent": "b146",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -2279,31 +2280,22 @@
           "topLevel": false
         },
         "b144": {
-          "opcode": "rtobject_vec3",
+          "opcode": "math_number",
           "next": null,
-          "parent": "b156",
-          "inputs": {
-            "X": [
-              1,
-              "b141"
-            ],
-            "Y": [
-              1,
-              "b142"
-            ],
-            "Z": [
-              1,
-              "b143"
+          "parent": "b146",
+          "inputs": {},
+          "fields": {
+            "NUM": [
+              "0"
             ]
           },
-          "fields": {},
-          "shadow": false,
+          "shadow": true,
           "topLevel": false
         },
         "b145": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b148",
+          "parent": "b146",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -2314,57 +2306,31 @@
           "topLevel": false
         },
         "b146": {
-          "opcode": "math_number",
-          "next": null,
-          "parent": "b148",
-          "inputs": {},
-          "fields": {
-            "NUM": [
-              "0"
-            ]
-          },
-          "shadow": true,
-          "topLevel": false
-        },
-        "b147": {
-          "opcode": "math_number",
-          "next": null,
-          "parent": "b148",
-          "inputs": {},
-          "fields": {
-            "NUM": [
-              "0"
-            ]
-          },
-          "shadow": true,
-          "topLevel": false
-        },
-        "b148": {
           "opcode": "rtobject_vec3",
           "next": null,
-          "parent": "b156",
+          "parent": "b154",
           "inputs": {
             "X": [
               1,
-              "b145"
+              "b143"
             ],
             "Y": [
               1,
-              "b146"
+              "b144"
             ],
             "Z": [
               1,
-              "b147"
+              "b145"
             ]
           },
           "fields": {},
           "shadow": false,
           "topLevel": false
         },
-        "b149": {
+        "b147": {
           "opcode": "text",
           "next": null,
-          "parent": "b156",
+          "parent": "b154",
           "inputs": {},
           "fields": {
             "TEXT": [
@@ -2374,10 +2340,10 @@
           "shadow": true,
           "topLevel": false
         },
-        "b150": {
+        "b148": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b156",
+          "parent": "b154",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -2387,10 +2353,36 @@
           "shadow": true,
           "topLevel": false
         },
+        "b149": {
+          "opcode": "math_number",
+          "next": null,
+          "parent": "b152",
+          "inputs": {},
+          "fields": {
+            "NUM": [
+              "1"
+            ]
+          },
+          "shadow": true,
+          "topLevel": false
+        },
+        "b150": {
+          "opcode": "math_number",
+          "next": null,
+          "parent": "b152",
+          "inputs": {},
+          "fields": {
+            "NUM": [
+              "1"
+            ]
+          },
+          "shadow": true,
+          "topLevel": false
+        },
         "b151": {
           "opcode": "math_number",
           "next": null,
-          "parent": "b154",
+          "parent": "b152",
           "inputs": {},
           "fields": {
             "NUM": [
@@ -2401,16 +2393,25 @@
           "topLevel": false
         },
         "b152": {
-          "opcode": "math_number",
+          "opcode": "rtobject_vec3",
           "next": null,
           "parent": "b154",
-          "inputs": {},
-          "fields": {
-            "NUM": [
-              "1"
+          "inputs": {
+            "X": [
+              1,
+              "b149"
+            ],
+            "Y": [
+              1,
+              "b150"
+            ],
+            "Z": [
+              1,
+              "b151"
             ]
           },
-          "shadow": true,
+          "fields": {},
+          "shadow": false,
           "topLevel": false
         },
         "b153": {
@@ -2420,26 +2421,42 @@
           "inputs": {},
           "fields": {
             "NUM": [
-              "1"
+              "0"
             ]
           },
           "shadow": true,
           "topLevel": false
         },
         "b154": {
-          "opcode": "rtobject_vec3",
-          "next": null,
-          "parent": "b156",
+          "opcode": "rt3d_add",
+          "next": "b156",
+          "parent": "b137",
           "inputs": {
-            "X": [
+            "MEDIA": [
               1,
-              "b151"
+              "b138"
             ],
-            "Y": [
+            "POS": [
+              1,
+              "b142"
+            ],
+            "ROTATION": [
+              1,
+              "b146"
+            ],
+            "ORDER": [
+              1,
+              "b147"
+            ],
+            "SIZE": [
+              1,
+              "b148"
+            ],
+            "SCALE": [
               1,
               "b152"
             ],
-            "Z": [
+            "FRAME": [
               1,
               "b153"
             ]
@@ -2449,48 +2466,24 @@
           "topLevel": false
         },
         "b155": {
-          "opcode": "math_number",
+          "opcode": "text",
           "next": null,
           "parent": "b156",
           "inputs": {},
           "fields": {
-            "NUM": [
-              "0"
+            "TEXT": [
+              "main"
             ]
           },
           "shadow": true,
           "topLevel": false
         },
         "b156": {
-          "opcode": "rt3d_add",
+          "opcode": "rt3d_scene",
           "next": "b158",
-          "parent": "b139",
+          "parent": "b154",
           "inputs": {
-            "MEDIA": [
-              1,
-              "b140"
-            ],
-            "POS": [
-              1,
-              "b144"
-            ],
-            "ROTATION": [
-              1,
-              "b148"
-            ],
-            "ORDER": [
-              1,
-              "b149"
-            ],
-            "SIZE": [
-              1,
-              "b150"
-            ],
-            "SCALE": [
-              1,
-              "b154"
-            ],
-            "FRAME": [
+            "BUFFER": [
               1,
               "b155"
             ]
@@ -2513,18 +2506,25 @@
           "topLevel": false
         },
         "b158": {
-          "opcode": "rt3d_scene",
+          "opcode": "rtgpu_call",
           "next": "b160",
           "parent": "b156",
           "inputs": {
-            "BUFFER": [
+            "ao-buffer": [
               1,
               "b157"
             ]
           },
           "fields": {},
           "shadow": false,
-          "topLevel": false
+          "topLevel": false,
+          "mutation": {
+            "tagName": "mutation",
+            "children": [],
+            "proccode": "Ambient occlusion %s %s",
+            "argumentids": "[\"ao-uv\",\"ao-buffer\"]",
+            "gpu": "true"
+          }
         },
         "b159": {
           "opcode": "text",
@@ -2540,47 +2540,13 @@
           "topLevel": false
         },
         "b160": {
-          "opcode": "rtgpu_call",
-          "next": "b162",
-          "parent": "b158",
-          "inputs": {
-            "ao-buffer": [
-              1,
-              "b159"
-            ]
-          },
-          "fields": {},
-          "shadow": false,
-          "topLevel": false,
-          "mutation": {
-            "tagName": "mutation",
-            "children": [],
-            "proccode": "Ambient occlusion %s %s",
-            "argumentids": "[\"ao-uv\",\"ao-buffer\"]",
-            "gpu": "true"
-          }
-        },
-        "b161": {
-          "opcode": "text",
-          "next": null,
-          "parent": "b162",
-          "inputs": {},
-          "fields": {
-            "TEXT": [
-              "main"
-            ]
-          },
-          "shadow": true,
-          "topLevel": false
-        },
-        "b162": {
           "opcode": "rtbuffer_render",
           "next": null,
-          "parent": "b160",
+          "parent": "b158",
           "inputs": {
             "NAME": [
               1,
-              "b161"
+              "b159"
             ]
           },
           "fields": {},

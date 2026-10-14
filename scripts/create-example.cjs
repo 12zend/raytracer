@@ -25,10 +25,10 @@ const definition=block('procedures_definition',{custom_block:prototype},{},{topL
 const primary=chain(set('origin',v(0,1,3)),set('direction',normalized(v(op('multiply',op('subtract',uv('x'),.5),1.33333),op('subtract',uv('y'),.5),-1))),set('hit',trace('origin','direction')));
 blocks[definition].next=primary;blocks[primary].parent=definition;
 const hemisphere=block('control_if',{CONDITION:block('operator_lt',{OPERAND1:block('rtgpu_dot',{A:variable('bounce'),B:prop(variable('hit'),'normal')}),OPERAND2:n(0)}),SUBSTACK:set('bounce',op('multiply',variable('bounce'),-1))});
-const sample=chain(set('bounce',normalized(v(random(),random(),random()))),hemisphere,set('secondary',trace('point','bounce')),block('control_if',{CONDITION:block('operator_not',{OPERAND:prop(variable('secondary'),'hit')}),SUBSTACK:block('data_changevariableby',{VALUE:n(1)},{VARIABLE:'visible'})}));
+const sample=chain(set('bounce',normalized(v(random(),random(),random()))),hemisphere,set('secondary',trace('point','bounce')),block('control_if',{CONDITION:block('operator_not',{OPERAND:block('rtray_hit',{RAY:variable('secondary')})}),SUBSTACK:block('data_changevariableby',{VALUE:n(1)},{VARIABLE:'visible'})}));
 const visible=()=>op('divide',variable('visible'),10);
 const shade=chain(set('point',op('add',prop(variable('hit'),'hit_position'),op('multiply',prop(variable('hit'),'normal'),.001))),set('visible',n(0)),block('control_repeat',{TIMES:n(10),SUBSTACK:sample}),ret(v(visible(),visible(),visible(),1)));
-const branch=block('control_if_else',{CONDITION:prop(variable('hit'),'hit'),SUBSTACK:shade,SUBSTACK2:ret(v(.025,.035,.05,1))});
+const branch=block('control_if_else',{CONDITION:block('rtray_hit',{RAY:variable('hit')}),SUBSTACK:shade,SUBSTACK2:ret(v(.025,.035,.05,1))});
 let last=primary;while(blocks[last].next)last=blocks[last].next;blocks[last].next=branch;blocks[branch].parent=last;
 const flag=block('event_whenflagclicked',{}, {},{topLevel:true,x:20,y:40});
 chain(flag,block('rtbuffer_resolution',{W:n(320),H:n(240)}),block('rtbuffer_add',{NAME:text('main')}),block('rt3d_clear'),block('rt3d_add',{MEDIA:text('scene.obj'),POS:v(0,0,0),ROTATION:v(0,0,0),ORDER:text('XYZ'),SIZE:n(100),SCALE:v(1,1,1),FRAME:n(0)}),block('rt3d_scene',{BUFFER:text('main')}),block('rtgpu_call',{'ao-buffer':text('main')},{},{mutation:{tagName:'mutation',children:[],proccode:gpuMutation.proccode,argumentids:gpuMutation.argumentids,gpu:'true'}}),block('rtbuffer_render',{NAME:text('main')}));

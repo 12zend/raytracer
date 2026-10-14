@@ -51,9 +51,10 @@ test('compile return vec4 and implicit uv, buffer declarations', () => {
 test('reject wrong return and unsupported CPU commands', () => {
     const b = sample();
     b.r.inputs.VALUE.block = 'n';
-    assert.throws(() => new Compiler().compile(b, b.d), /Expected vec4/);
+    // Errors name the offending block so the editor can reveal it.
+    assert.throws(() => new Compiler().compile(b, b.d), e => e.blockId === 'r' && /needs a vec4, but got a number/.test(e.message));
     b.r.opcode = 'control_wait';
-    assert.throws(() => new Compiler().compile(b, b.d), /Unsupported command/);
+    assert.throws(() => new Compiler().compile(b, b.d), /cannot run inside a GPU block/);
 });
 test('argument types follow the caller and uv, buffer are implicit', () => {
     const b = sample();
@@ -61,12 +62,12 @@ test('argument types follow the caller and uv, buffer are implicit', () => {
     b.r.inputs.VALUE.block = 'a';
     b.a = argument('a', 'tint');
     assert.match(new Compiler().compile(b, b.d, ['vec4', 'bool']).source, /uniform vec4 arg0;\nuniform bool arg1;/);
-    assert.throws(() => new Compiler().compile(b, b.d, ['float', 'bool']), /Expected vec4, got float/);
-    assert.throws(() => new Compiler().compile(b, b.d, ['vec4', 'float']), /must be boolean/);
+    assert.throws(() => new Compiler().compile(b, b.d, ['float', 'bool']), /needs a vec4, but got a number/);
+    assert.throws(() => new Compiler().compile(b, b.d, ['vec4', 'float']), /must be a boolean/);
     b.a = argument('a', 'buffer');
     assert.match(new Compiler().compile(b, b.d, ['vec4', 'bool']).source, /return texture\(previousBuffer,uv\);/);
     b.p.mutation.argumentnames = JSON.stringify(['tint', 'on']);
-    assert.throws(() => new Compiler().compile(b, b.d), /implicit uv and buffer/);
+    assert.throws(() => new Compiler().compile(b, b.d), /lost its uv and buffer inputs/);
 });
 test('bounded sample loops and cyclic input diagnostic', () => {
     const b = sample();
@@ -78,5 +79,15 @@ test('bounded sample loops and cyclic input diagnostic', () => {
     };
     assert.match(new Compiler().compile(b, b.d).source, /count0/);
     b.v.inputs.X.block = 'v';
-    assert.throws(() => new Compiler().compile(b, b.d), /Cyclic expression/);
+    assert.throws(() => new Compiler().compile(b, b.d), /plugged into itself/);
+});
+test('hit? is a boolean condition and rejects non-hit values', () => {
+    const b = sample();
+    b.d.next = 'if';
+    b.if = {id: 'if', opcode: 'control_if', inputs: {CONDITION: {block: 'h'}, SUBSTACK: {block: 'r'}}};
+    b.h = {id: 'h', opcode: 'rtray_hit', inputs: {RAY: {block: 't'}}};
+    b.t = {id: 't', opcode: 'rtray_trace', inputs: {}};
+    assert.match(new Compiler().compile(b, b.d).source, /if\(\(traceRay\(vec3\(0\.0,0\.0,0\.0\),vec3\(0\.0,0\.0,0\.0\)\)\)\.hit\)/);
+    b.h.inputs.RAY.block = 'n';
+    assert.throws(() => new Compiler().compile(b, b.d), e => e.blockId === 'h' && /needs a ray hit/.test(e.message));
 });

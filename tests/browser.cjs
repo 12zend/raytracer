@@ -1,7 +1,7 @@
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert=require('node:assert/strict');
 (async()=>{const browser=await chromium.launch({headless:true,args:['--no-proxy-server','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});try{
-const page=await browser.newPage({viewport:{width:1440,height:1000}});page.on('pageerror',e=>console.log('PAGEERROR',e.message));await page.goto(`${process.env.TEST_URL || 'http://127.0.0.1:8601'}/editor.html`,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.vm?.editingTarget&&window.vm.runtime.raytracer);await page.waitForTimeout(2000);
+const page=await browser.newPage({viewport:{width:1440,height:1000}});page.on('pageerror',e=>console.log('PAGEERROR',e.message));const blocklyErrors=[];page.on('console',m=>{if(m.type()==='error'&&/Connection checks failed|Workspace Update Error/.test(m.text()))blocklyErrors.push(m.text());});await page.goto(`${process.env.TEST_URL || 'http://127.0.0.1:8601'}/editor.html`,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.vm?.editingTarget&&window.vm.runtime.raytracer);await page.waitForTimeout(2000);
 await page.getByText('GPU',{exact:true}).first().click();
 // The GPU button opens the same editor as My Blocks.
 await page.getByText('Make a GPU block',{exact:true}).click();
@@ -67,7 +67,7 @@ const result=await page.evaluate(async()=>{
 await page.evaluate(async project=>{await window.vm.loadProject(JSON.stringify(project));window.vm.setCompilerOptions({enabled:true});window.vm.greenFlag();},example);
 await page.waitForFunction(()=>window.vm.runtime.raytracer.buffers && window.vm.runtime.threads.length===0);
 const ao=await page.evaluate(()=>{const r=window.vm.runtime.raytracer,g=r.gpu().gl,b=r.gpu().require('main');r.gpu().attach(b,b.textures[b.front]);const data=new Float32Array(320*240*4);g.readPixels(0,0,320,240,g.RGBA,g.FLOAT,data);let min=1,max=0;for(let i=0;i<data.length;i+=4){min=Math.min(min,data[i]);max=Math.max(max,data[i]);}return {min,max,error:g.getError()};});
-console.log('AO render',ao);assert.equal(ao.error,0);assert.ok(ao.max>.8);assert.ok(ao.min<.1);
+assert.deepEqual(blocklyErrors,[]);console.log('AO render',ao);assert.equal(ao.error,0);assert.ok(ao.max>.8);assert.ok(ao.min<.1);
 // Costume upload accepts images and 3D assets together: images become costumes, models go to the scene.
 await page.getByRole('tab').nth(1).click();
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=','base64');
@@ -85,7 +85,6 @@ await assetItem.click();
 await page.locator('[class*=asset-preview_wrapper]').getByText('Read-only',{exact:true}).waitFor();
 assert.equal(await page.locator('[class*=asset-preview_model]').count(),1);
 await page.waitForTimeout(500);
-await page.screenshot({path:process.env.SCREENSHOT || '/tmp/raytracer-running.png'});
 const download=page.waitForEvent('download');
 await assetItem.click({button:'right'});
 await page.locator('.react-contextmenu--visible').getByText('export',{exact:true}).click();
@@ -95,4 +94,17 @@ assert.equal(await page.locator('.react-contextmenu--visible').getByText('duplic
 await page.locator('.react-contextmenu--visible').getByText('delete',{exact:true}).click();
 await page.waitForFunction(()=>!window.vm.runtime.raytracer.scene.items.some(i=>i.name==='upload-model.obj'));
 assert.equal(await assetItem.count(),0);
+// Block errors appear as a TurboWarp alert; "Show block" opens the Code tab and selects the block.
+await page.evaluate(async()=>{const vm=window.vm,t=vm.editingTarget;
+ t.blocks.createBlock({id:'err-hat',opcode:'event_whenflagclicked',next:'err-render',parent:null,inputs:{},fields:{},shadow:false,topLevel:true,x:40,y:400});
+ t.blocks.createBlock({id:'err-render',opcode:'rtbuffer_render',next:null,parent:'err-hat',inputs:{NAME:{name:'NAME',block:'err-name',shadow:'err-name'}},fields:{},shadow:false,topLevel:false});
+ t.blocks.createBlock({id:'err-name',opcode:'text',next:null,parent:'err-render',inputs:{},fields:{TEXT:{name:'TEXT',value:'missing'}},shadow:true,topLevel:false});
+ vm.emitWorkspaceUpdate();await new Promise(r=>setTimeout(r,300));vm.greenFlag();});
+const alert=page.locator('[class*=alert_warn]',{hasText:'Buffer “missing” does not exist'});
+await alert.waitFor();
+assert.equal(await page.locator('[class*=alert_warn]',{hasText:'does not exist'}).count(),1);
+await page.screenshot({path:process.env.SCREENSHOT || '/tmp/raytracer-running.png'});
+await alert.getByRole('button',{name:'Show block'}).click();
+await page.waitForFunction(()=>window.ScratchBlocks?.selected?.id==='err-render'||document.querySelector('.blocklySelected')!==null);
+assert.equal(await page.getByRole('tab',{selected:true}).innerText().then(t=>t.trim()),'Code');
 }finally{await browser.close();}})().catch(e=>{console.error(e);process.exit(1);});
