@@ -1,5 +1,10 @@
-import installGPUBlocks from 'scratch-blocks/raytracer';
-import GPUEditor from '../components/raytracer/gpu-editor.jsx';
+import installGPUBlocks, {
+    isGPUMutation,
+    toGPUMutation,
+    fromGPUMutation,
+    styleGPUDefinitions,
+    mutateGPUCallers
+} from 'scratch-blocks/raytracer';
 import bindAll from 'lodash.bindall';
 import debounce from 'lodash.debounce';
 import defaultsDeep from 'lodash.defaultsdeep';
@@ -125,10 +130,10 @@ class Blocks extends React.Component {
             'setBlocks',
             'setLocale',
             'handleEnableProcedureReturns',
-            'openGPUEditor',
-            'handleCreateGPUDefinition',
+            'handleGPUDefinitionStart',
+            'handleProcedureDefinition',
+            'handleGPUBlocksChange',
             'showGPUError',
-            'handleCloseGPUEditor',
             'handleCloseGPUError'
         ]);
         this.ScratchBlocks.prompt = this.handlePromptStart;
@@ -148,7 +153,7 @@ class Blocks extends React.Component {
         this.ScratchBlocks.recordSoundCallback = this.handleOpenSoundRecorder;
 
         this.ScratchBlocks.FieldColourSlider.activateEyedropper_ = this.props.onActivateColorPicker;
-        this.ScratchBlocks.Procedures.externalProcedureDefCallback = this.props.onActivateCustomProcedures;
+        this.ScratchBlocks.Procedures.externalProcedureDefCallback = this.handleProcedureDefinition;
         this.ScratchBlocks.ScratchMsgs.setLocale(this.props.locale);
 
         const Msg = this.ScratchBlocks.Msg;
@@ -173,6 +178,7 @@ class Blocks extends React.Component {
         );
         this.workspace = this.ScratchBlocks.inject(this.blocks, workspaceConfig);
         AddonHooks.blocklyWorkspace = this.workspace;
+        this.workspace.addChangeListener(this.handleGPUBlocksChange);
 
         // Register buttons under new callback keys for creating variables,
         // lists, and procedures from extensions.
@@ -240,7 +246,6 @@ class Blocks extends React.Component {
     shouldComponentUpdate (nextProps, nextState) {
         return (
             this.state.prompt !== nextState.prompt ||
-            this.state.gpuEditor !== nextState.gpuEditor ||
             this.state.gpuError !== nextState.gpuError ||
             this.props.isVisible !== nextProps.isVisible ||
             this._renderedToolboxXML !== nextProps.toolboxXML ||
@@ -359,40 +364,57 @@ class Blocks extends React.Component {
         }
     }
 
-    openGPUEditor () {
-        this.setState({gpuEditor: true});
+    // GPU blocks use the My Blocks editor; the GPU-specific parts live in scratch-blocks/raytracer.
+    gpuMutation (mutation, implicitIds) {
+        if (!mutation) return null;
+        try {
+            return toGPUMutation(mutation, implicitIds, this.ScratchBlocks.utils.genUid);
+        } catch (error) {
+            alert(error.message); // eslint-disable-line no-alert
+            return null;
+        }
+    }
+    refreshGPUBlocks () {
+        styleGPUDefinitions(this.workspace);
+        setTimeout(() => this.props.updateToolboxState(this.getToolboxXML()), 0);
+    }
+    handleGPUDefinitionStart () {
+        const create = this.ScratchBlocks.Procedures.createProcedureCallbackFactory_(this.workspace);
+        this.gpuProcedureOpen = true;
+        this.props.onActivateCustomProcedures(this.ScratchBlocks.Procedures.newProcedureMutation(), mutation => {
+            const gpu = this.gpuMutation(mutation, null);
+            if (!gpu) return;
+            create(gpu);
+            this.refreshGPUBlocks();
+        });
+    }
+    handleProcedureDefinition (mutation, callback) {
+        if (!isGPUMutation(mutation)) {
+            this.props.onActivateCustomProcedures(mutation, callback);
+            return;
+        }
+        const oldProcCode = mutation.getAttribute('proccode');
+        const editable = fromGPUMutation(mutation);
+        this.gpuProcedureOpen = true;
+        this.props.onActivateCustomProcedures(editable.mutation, edited => {
+            const gpu = this.gpuMutation(edited, editable.implicitIds);
+            if (!gpu) return;
+            callback(gpu);
+            mutateGPUCallers(this.ScratchBlocks, this.workspace, oldProcCode, gpu);
+            this.refreshGPUBlocks();
+        });
+    }
+    handleGPUBlocksChange (event) {
+        if (event.type === this.ScratchBlocks.Events.BLOCK_CREATE) styleGPUDefinitions(this.workspace);
     }
     showGPUError (message) {
         this.setState({gpuError: message});
     }
-    handleCloseGPUEditor () {
-        this.setState({gpuEditor: false});
-    }
     handleCloseGPUError () {
         this.setState({gpuError: null});
     }
-    handleCreateGPUDefinition (name, params) {
-        name = name.trim();
-        const invalidParam = p => !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(p.name) || ['uv', 'buffer'].includes(p.name);
-        if (!name || params.some(invalidParam) || new Set(params.map(p => p.name)).size !== params.length) {
-            throw new Error('Use unique argument names; uv and buffer are reserved.');
-        }
-        if (this.workspace.getTopBlocks(false).some(b => b.type === 'rtgpu_define' && b.gpuName === name)) {
-            throw new Error('GPU block name already exists.');
-        }
-        installGPUBlocks(this.ScratchBlocks);
-        const mutation = document.createElement('mutation');
-        mutation.setAttribute('name', name); mutation.setAttribute('params', JSON.stringify(params));
-        const xml = document.createElement('xml');
-        const node = document.createElement('block');
-        node.setAttribute('type', 'rtgpu_define'); node.setAttribute('x', '100'); node.setAttribute('y', '100');
-        node.appendChild(mutation); xml.appendChild(node);
-        this.ScratchBlocks.Xml.domToWorkspace(xml, this.workspace);
-        this.setState({gpuEditor: false});
-        setTimeout(() => this.props.updateToolboxState(this.getToolboxXML()), 0);
-    }
     attachVM () {
-        this.props.vm.runtime.on('RAYTRACER_CREATE_GPU', this.openGPUEditor);
+        this.props.vm.runtime.on('RAYTRACER_CREATE_GPU', this.handleGPUDefinitionStart);
         this.props.vm.runtime.on('RAYTRACER_ERROR', this.showGPUError);
         this.workspace.addChangeListener(this.props.vm.blockListener);
         this.flyoutWorkspace = this.workspace
@@ -414,7 +436,7 @@ class Blocks extends React.Component {
         this.props.vm.addListener('PERIPHERAL_DISCONNECTED', this.handleStatusButtonUpdate);
     }
     detachVM () {
-        this.props.vm.runtime.removeListener('RAYTRACER_CREATE_GPU', this.openGPUEditor);
+        this.props.vm.runtime.removeListener('RAYTRACER_CREATE_GPU', this.handleGPUDefinitionStart);
         this.props.vm.runtime.removeListener('RAYTRACER_ERROR', this.showGPUError);
         this.props.vm.removeListener('SCRIPT_GLOW_ON', this.onScriptGlowOn);
         this.props.vm.removeListener('SCRIPT_GLOW_OFF', this.onScriptGlowOff);
@@ -502,14 +524,14 @@ class Blocks extends React.Component {
                 const escape = value => String(value).replace(/&/g, '&amp;')
                     .replace(/</g, '&lt;')
                     .replace(/"/g, '&quot;');
-                const calls = target.blocks.getScripts().map(id => target.blocks.getBlock(id))
-                    .filter(b => b.opcode === 'rtgpu_define' && b.mutation)
-                    .map(b => `<block type="rtgpu_call"><mutation name="${escape(b.mutation.name)}" ` +
-                        `params="${escape(b.mutation.params)}"/><value name="BUFFER"><shadow type="text">` +
-                        '<field name="TEXT">main</field></shadow></value></block>')
+                // One caller per GPU definition (a My Blocks prototype with gpu="true").
+                const calls = Object.values(target.blocks._blocks)
+                    .filter(b => b.opcode === 'procedures_prototype' && b.mutation && String(b.mutation.gpu) === 'true')
+                    .map(b => `<block type="rtgpu_call"><mutation proccode="${escape(b.mutation.proccode)}" ` +
+                        `argumentids="${escape(b.mutation.argumentids)}" generateshadows="true" gpu="true"/></block>`)
                     .join('');
                 gpuCategory.xml = gpuCategory.xml.replace('</category>',
-                    `${calls}<block type="rtgpu_argument"/><block type="procedures_return"/></category>`);
+                    `${calls}<block type="procedures_return"/></category>`);
             }
             return makeToolboxXML(false, target.isStage, target.id, dynamicBlocksXML,
                 targetCostumes[targetCostumes.length - 1].name,
@@ -691,7 +713,8 @@ class Blocks extends React.Component {
         this.props.onRequestCloseCustomProcedures(data);
         const ws = this.workspace;
         ws.refreshToolboxSelection_();
-        ws.toolbox_.scrollToCategoryById('myBlocks');
+        ws.toolbox_.scrollToCategoryById(this.gpuProcedureOpen ? 'rtgpu' : 'myBlocks');
+        this.gpuProcedureOpen = false;
     }
     handleDrop (dragInfo) {
         fetch(dragInfo.payload.bodyUrl)
@@ -753,10 +776,6 @@ class Blocks extends React.Component {
         /* eslint-enable no-unused-vars */
         return (
             <React.Fragment>
-                {this.state.gpuEditor ? <GPUEditor
-                    onClose={this.handleCloseGPUEditor}
-                    onCreate={this.handleCreateGPUDefinition}
-                /> : null}
                 {this.state.gpuError ? <div
                     role="alert"
                     style={{position: 'absolute', zIndex: 100, background: '#fff0f0', padding: 12}}
