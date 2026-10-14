@@ -86,8 +86,13 @@ test('hit? is a boolean condition and rejects non-hit values', () => {
     b.d.next = 'if';
     b.if = {id: 'if', opcode: 'control_if', inputs: {CONDITION: {block: 'h'}, SUBSTACK: {block: 'r'}}};
     b.h = {id: 'h', opcode: 'rtray_hit', inputs: {RAY: {block: 't'}}};
-    b.t = {id: 't', opcode: 'rtray_trace', inputs: {}};
-    assert.match(new Compiler().compile(b, b.d).source, /if\(\(traceRay\(vec3\(0\.0,0\.0,0\.0\),vec3\(0\.0,0\.0,0\.0\)\)\)\.hit\)/);
+    // get ray takes a vec3 origin and direction.
+    b.t = {id: 't', opcode: 'rtray_trace', inputs: {ORIGIN: {block: 'o'}, DIRECTION: {block: 'o'}}};
+    b.o = {id: 'o', opcode: 'rtobject_vec3', inputs: {X: {block: 'n'}, Y: {block: 'n'}, Z: {block: 'n'}}};
+    assert.match(new Compiler().compile(b, b.d).source, /if\(\(traceRay\(vec3\(1\.0,1\.0,1\.0\),vec3\(1\.0,1\.0,1\.0\)\)\)\.hit\)/);
+    b.t.inputs.DIRECTION.block = 'n';
+    assert.throws(() => new Compiler().compile(b, b.d), e => e.blockId === 't' && /needs a vec3, but got a number/.test(e.message));
+    b.t.inputs.DIRECTION.block = 'o';
     b.h.inputs.RAY.block = 'n';
     assert.throws(() => new Compiler().compile(b, b.d), e => e.blockId === 'h' && /needs a ray hit/.test(e.message));
 });

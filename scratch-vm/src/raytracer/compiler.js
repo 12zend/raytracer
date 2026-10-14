@@ -186,7 +186,7 @@ class GPUCompiler {
         if (op === 'rtray_trace') {
             return result(
                 'Hit',
-                `traceRay(vec3(${['OX', 'OY', 'OZ'].map(k => this.require(input(k), 'float', b)).join(',')}),vec3(${['DX', 'DY', 'DZ'].map(k => this.require(input(k), 'float', b)).join(',')}))`
+                `traceRay(${this.require(input('ORIGIN'), 'vec3', b)},${this.require(input('DIRECTION'), 'vec3', b)})`
             );
         }
         if (op === 'rtray_hit') {

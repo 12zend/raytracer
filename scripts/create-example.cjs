@@ -11,8 +11,7 @@ const op=(name,a,b)=>block(`operator_${name}`,{NUM1:typeof a==='number'?n(a):a,N
 const variable=name=>block('data_variable',{}, {VARIABLE:name});
 const set=(name,value)=>block('data_setvariableto',{VALUE:value},{VARIABLE:name});
 const chain=(...ids)=>{for(let i=1;i<ids.length;i++){blocks[ids[i-1]].next=ids[i];blocks[ids[i]].parent=ids[i-1];}return ids[0];};
-const component=(name,key)=>prop(variable(name),key);
-const trace=(origin,direction)=>block('rtray_trace',Object.fromEntries(['OX','OY','OZ','DX','DY','DZ'].map((key,i)=>[key,i<3?component(origin,['x','y','z'][i]):component(direction,['x','y','z'][i-3])])));
+const trace=(origin,direction)=>block('rtray_trace',{ORIGIN:variable(origin),DIRECTION:variable(direction)});
 const random=()=>block('operator_random',{FROM:n(-1),TO:n(1)});
 const ret=color=>block('procedures_return',{VALUE:color});
 const normalized=a=>block('rtgpu_normalize',{V:a});
@@ -31,7 +30,7 @@ const shade=chain(set('point',op('add',prop(variable('hit'),'hit_position'),op('
 const branch=block('control_if_else',{CONDITION:block('rtray_hit',{RAY:variable('hit')}),SUBSTACK:shade,SUBSTACK2:ret(v(.025,.035,.05,1))});
 let last=primary;while(blocks[last].next)last=blocks[last].next;blocks[last].next=branch;blocks[branch].parent=last;
 const flag=block('event_whenflagclicked',{}, {},{topLevel:true,x:20,y:40});
-chain(flag,block('rtbuffer_resolution',{W:n(320),H:n(240)}),block('rtbuffer_add',{NAME:text('main')}),block('rt3d_clear'),block('rt3d_add',{MEDIA:text('scene.obj'),POS:v(0,0,0),ROTATION:v(0,0,0),ORDER:text('XYZ'),SIZE:n(100),SCALE:v(1,1,1),FRAME:n(0)}),block('rt3d_scene',{BUFFER:text('main')}),block('rtgpu_call',{'ao-buffer':text('main')},{},{mutation:{tagName:'mutation',children:[],proccode:gpuMutation.proccode,argumentids:gpuMutation.argumentids,gpu:'true'}}),block('rtbuffer_render',{NAME:text('main')}));
+chain(flag,block('rtbuffer_resolution',{W:n(320),H:n(240)}),block('rtbuffer_add',{NAME:text('main')}),block('rt3d_clear'),block('rt3d_add',{MEDIA:text('scene.obj'),POS:v(0,0,0),ROTATION:v(0,0,0),ORDER:text('XYZ'),SIZE:n(100),SCALE:v(1,1,1),FRAME:n(0)}),block('rtgpu_call',{'ao-buffer':text('main')},{},{mutation:{tagName:'mutation',children:[],proccode:gpuMutation.proccode,argumentids:gpuMutation.argumentids,gpu:'true'}}),block('rtbuffer_render',{NAME:text('main')}));
 const svg='<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360"><rect width="480" height="360" fill="#101018"/></svg>';
 const assetId=crypto.createHash('md5').update(svg).digest('hex');
 const obj='v -5 0 -5\nv 5 0 -5\nv 5 0 5\nv -5 0 5\nv -0.7 0 -0.7\nv 0.7 0 -0.7\nv 0.7 0 0.7\nv -0.7 0 0.7\nv 0 1.5 0\nf 1 4 3 2\nf 5 9 6\nf 6 9 7\nf 7 9 8\nf 8 9 5\n';

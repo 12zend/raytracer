@@ -1,5 +1,6 @@
 const getRuntime = require('./runtime');
-const {vector, reflect, refract} = require('./math');
+const {vector, xyz, reflect, refract} = require('./math');
+const {RaytracerError} = require('./errors');
 const arg = (value = '') => ({type: 'string', defaultValue: value});
 const number = (value = 0) => ({type: 'number', defaultValue: value});
 const command = (opcode, text, args = {}) => ({
@@ -16,15 +17,12 @@ const reporter = (opcode, text, args = {}) => ({
 const definitions = {
     rtobject: {
         name: 'Object',
-        color1: '#9b59b6',
+        // Gray: these blocks are everywhere, so they should blend in.
+        color1: '#8a8a99',
         blocks: [
             reporter('get', 'Get prop [OBJ] . [PROP]', {
                 OBJ: arg(),
                 PROP: arg('x')
-            }),
-            reporter('add', 'Add prop [OBJ] = [PROP]', {
-                OBJ: arg(),
-                PROP: arg()
             }),
             reporter('insert', 'Insert prop [OBJ] [IDX] = [PROP]', {
                 OBJ: arg(),
@@ -65,7 +63,6 @@ const definitions = {
                     FRAME: number()
                 }
             ),
-            command('scene', 'Scene to Buffer [BUFFER]', {BUFFER: arg('main')}),
             command(
                 'motion',
                 'Apply motion / pose [MEDIA] to object [INDEX] frame [FRAME]',
@@ -83,16 +80,10 @@ const definitions = {
         name: 'Ray',
         color1: '#ce8730',
         blocks: [
-            reporter(
-                'trace',
-                'get ray origin: [OX] [OY] [OZ] direction: [DX] [DY] [DZ]',
-                Object.fromEntries(
-                    ['OX', 'OY', 'OZ', 'DX', 'DY', 'DZ'].map(k => [
-                        k,
-                        number(k === 'DZ' ? -1 : 0)
-                    ])
-                )
-            ),
+            reporter('trace', 'get ray origin: [ORIGIN] direction: [DIRECTION]', {
+                ORIGIN: arg(),
+                DIRECTION: arg()
+            }),
             // Boolean so it fits if / repeat until conditions (Get prop is a round reporter).
             {...reporter('hit', '[RAY] hit?', {RAY: arg()}), blockType: 'Boolean'},
             reporter('reflect', 'reflect [I] [N]', {I: arg(), N: arg()}),
@@ -136,6 +127,12 @@ const definitions = {
         ]
     }
 };
+const vec3 = (v, label) => {
+    if (!v || typeof v !== 'object' || !['x', 'y', 'z'].every(k => k in v)) {
+        throw new RaytracerError(`${label} must be a vec3. Use the vec3 block.`);
+    }
+    return xyz(v).map(Number);
+};
 const validObject = v =>
     (v && typeof v === 'object' ? v : Object.create(null));
 const methods = {
@@ -148,8 +145,6 @@ const methods = {
                 aliases[a.PROP];
             return Object.prototype.hasOwnProperty.call(o, k) ? o[k] : '';
         },
-        add: a =>
-            (Array.isArray(a.OBJ) ? [...a.OBJ, a.PROP] : [a.OBJ, a.PROP]),
         insert: a => {
             if (Array.isArray(a.OBJ)) {
                 const out = a.OBJ.slice();
@@ -179,13 +174,11 @@ const methods = {
         )
     },
     rtray: {
-        trace: (a, r) =>
-            r.scene
-                .build()
-                .trace(
-                    [a.OX, a.OY, a.OZ].map(Number),
-                    [a.DX, a.DY, a.DZ].map(Number)
-                ),
+        trace: (a, r) => {
+            const origin = vec3(a.ORIGIN, 'Origin');
+            const direction = vec3(a.DIRECTION, 'Direction');
+            return r.scene.build().trace(origin, direction);
+        },
         hit: a => !!(a.RAY && typeof a.RAY === 'object' && a.RAY.hit),
         reflect: a => reflect(a.I, a.N),
         refract: a => refract(a.I, a.N, a.IOR)
@@ -211,10 +204,6 @@ const methods = {
                 typeof a.SCALE === 'object' ? a.SCALE : vector(3, [1, 1, 1]),
                 a.FRAME
             );
-        },
-        scene: (a, r) => {
-            r.gpu().require(a.BUFFER);
-            r.upload();
         },
         motion: (a, r) => r.scene.applyMotion(a.MEDIA, a.INDEX, a.FRAME)
     },
