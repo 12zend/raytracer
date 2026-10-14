@@ -24,6 +24,7 @@
     "watch": "webpack --progress --colors --watch --watch-poll"
   },
   "devDependencies": {
+    "@babel/eslint-parser": "^7.29.9",
     "babel-core": "6.26.3",
     "babel-eslint": "10.1.0",
     "babel-loader": "7.1.5",
