@@ -84,6 +84,7 @@ class RayRuntime {
         // Argument types follow the values passed in, so one definition accepts float or vec inputs.
         const values = layout.ids.map((id, i) => argumentValue(args[id], layout.kinds[i], layout.names[i]));
         const types = values.map(v => v.type);
+        const env = this.environment(util);
         const cacheKey = blocks._cache.compiledScripts;
         let cache = this.kernels.get(cacheKey);
         if (!cache) {
@@ -92,11 +93,14 @@ class RayRuntime {
         }
         const key = `${definition.id}:${types.join()}`;
         let compiled = cache.get(key);
-        if (!compiled) {
-            compiled = new GPUCompiler().compile(blocks, definition, types);
+        let sample = compiled && GPUCompiler.sample(compiled, env);
+        // Variables and sensing values are compiled in by type (text by value); recompile when they change.
+        if (!compiled || sample.signature !== compiled.signature) {
+            compiled = new GPUCompiler().compile(blocks, definition, types, env);
             cache.set(key, compiled);
+            sample = GPUCompiler.sample(compiled, env);
         }
-        const uniforms = {};
+        const uniforms = GPUCompiler.uniforms(compiled, sample.values);
         values.forEach((v, i) => {
             uniforms[`arg${i}`] = v;
         });
@@ -128,6 +132,30 @@ class RayRuntime {
         }
         this.runtime.emitProjectChanged();
         return newName;
+    }
+    /**
+     * Project access for GPU blocks: variables and CPU-only reporters (sensing, motion, looks).
+     * @param {object} util Block utility of the thread calling the GPU block.
+     * @returns {object} Environment for GPUCompiler.
+     */
+    environment (util) {
+        const target = util.target;
+        const runtime = this.runtime;
+        return {
+            variable: field => {
+                const v = target.lookupVariableById(field.id) || target.lookupVariableByNameAndType(field.value, '');
+                return v ? v.value : null;
+            },
+            host: (opcode, args) => {
+                const fn = runtime.getOpcodeFunction(opcode);
+                if (!fn) throw new RaytracerError('This block cannot run inside a GPU block.');
+                const value = fn(args, util);
+                if (value && typeof value.then === 'function') {
+                    throw new RaytracerError('This block takes time to answer, so a GPU block cannot use it.');
+                }
+                return value;
+            }
+        };
     }
     render (name) {
         const rendered = this.gpu().render(name);

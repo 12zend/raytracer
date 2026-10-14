@@ -16,6 +16,12 @@ uniform float sampleSeed;
 float seed;
 ${setters}
 float randomFloat(){seed+=1.0;return fract(sin(dot(gl_FragCoord.xy+vec2(seed,seed*0.37),vec2(12.9898,78.233)))*43758.5453);}
+// pick random: mode 0 decimal, 1 whole numbers, 2 whole numbers when both ends are whole (as Scratch).
+float randomBetween(float a,float b,int mode){
+ float lo=min(a,b),hi=max(a,b);if(lo==hi)return lo;
+ if(mode==1||(mode==2&&fract(a)==0.0&&fract(b)==0.0))return lo+floor(randomFloat()*(hi+1.0-lo));
+ return lo+randomFloat()*(hi-lo);
+}
 vec4 fetchData(sampler2D tex,int i){int w=textureSize(tex,0).x;return texelFetch(tex,ivec2(i%w,i/w),0);}
 bool boxHit(vec3 o,vec3 d,vec3 low,vec3 high,float nearest){
  float lo=0.00001,hi=nearest;
