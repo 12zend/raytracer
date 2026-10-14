@@ -6,12 +6,10 @@ class RayBuffers {
             alpha: false,
             preserveDrawingBuffer: true
         });
-        if (!this.gl) throw new Error('Raytracer requires WebGL 2');
+        if (!this.gl) throw new Error('This browser does not support WebGL 2, which the raytracer needs.');
         this.float = !!this.gl.getExtension('EXT_color_buffer_float');
         if (!this.float)
-            throw new Error(
-                'Raytracer requires EXT_color_buffer_float for linear accumulation'
-            );
+            throw new Error('This GPU cannot render to floating-point buffers (EXT_color_buffer_float), which the raytracer needs.');
         this.width = 480;
         this.height = 360;
         this.buffers = new Map();
@@ -32,7 +30,7 @@ class RayBuffers {
             w > max ||
             h > max
         )
-            throw new Error(`Invalid buffer resolution (maximum ${max})`);
+            throw new Error(`Buffer resolution must be whole numbers from 1 to ${max}.`);
         this.width = w;
         this.height = h;
         for (const name of this.buffers.keys()) this.add(name);
@@ -90,14 +88,14 @@ class RayBuffers {
             0
         );
         if (g.checkFramebufferStatus(g.FRAMEBUFFER) !== g.FRAMEBUFFER_COMPLETE)
-            throw new Error('Incomplete GPU framebuffer');
+            throw new Error('The GPU could not create this buffer. Try a smaller resolution.');
     }
     clear() {
         for (const name of this.buffers.keys()) this.add(name);
     }
     require(name) {
         const b = this.buffers.get(String(name));
-        if (!b) throw new Error(`Unknown buffer: ${name}`);
+        if (!b) throw new Error(`Buffer “${name}” does not exist. Create it with “Add buffer” first.`);
         return b;
     }
     program(fragment) {
@@ -110,7 +108,7 @@ class RayBuffers {
             if (!g.getShaderParameter(s, g.COMPILE_STATUS)) {
                 const e = g.getShaderInfoLog(s);
                 g.deleteShader(s);
-                throw new Error(e);
+                throw new Error(`The GPU could not compile this GPU block: ${e.trim().split('\n')[0]}`);
             }
             return s;
         };
@@ -128,7 +126,7 @@ class RayBuffers {
         if (!g.getProgramParameter(p, g.LINK_STATUS)) {
             const e = g.getProgramInfoLog(p);
             g.deleteProgram(p);
-            throw new Error(e);
+            throw new Error(`The GPU could not link this GPU block: ${e.trim().split('\n')[0]}`);
         }
         // Keep a bounded cache while scripts are edited.
         if (this.programs.size >= 32) {
@@ -147,7 +145,7 @@ class RayBuffers {
             const count = data.length / 4,
                 w = Math.min(max, count),
                 h = Math.ceil(count / w);
-            if (h > max) throw new Error('Scene exceeds GPU texture capacity');
+            if (h > max) throw new Error('The scene is too large for this GPU. Use fewer or simpler objects.');
             const padded = new Float32Array(w * h * 4);
             padded.set(data);
             return this.texture(padded, w, h);
