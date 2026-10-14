@@ -380,6 +380,9 @@ class MediaScene {
             });
         }
     }
+    blob (id) {
+        return new Blob([decode(this.find(id).data)]);
+    }
     remove (id) {
         const item = this.find(id);
         this.release(item);

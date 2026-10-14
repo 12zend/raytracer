@@ -1,4 +1,5 @@
 const MediaScene = require('./media');
+const preview = require('./preview');
 const GPUCompiler = require('./compiler');
 const Cast = require('../util/cast');
 const RayBuffers = require('scratch-render/src/raytracer/buffers');
@@ -26,6 +27,7 @@ class RayRuntime {
     constructor (runtime) {
         this.runtime = runtime;
         this.scene = new MediaScene();
+        this.preview = preview;
         // Model textures uploaded through the Media (costume) list are matched by file name.
         this.scene.companion = name => {
             const base = name.replace(/\.[^.]+$/, '');
