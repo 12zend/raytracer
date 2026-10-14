@@ -1,0 +1,11 @@
+{
+  "name": "raytracer-workspace",
+  "private": true,
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "start": "npm --prefix scratch-gui start",
+    "build": "npm --prefix scratch-gui run build",
+    "test": "node --test tests/*.test.js"
+  },
+  "engines": {"node": ">=20"}
+}
