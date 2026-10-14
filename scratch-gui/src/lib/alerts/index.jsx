@@ -276,6 +276,13 @@ const alerts = [
         ),
         iconSpinner: true,
         level: AlertLevels.SUCCESS
+    },
+    {
+        // Raytracer block errors: the message comes from the VM, onShowBlock reveals the block.
+        alertId: 'raytracerError',
+        clearList: ['raytracerError'],
+        closeButton: true,
+        level: AlertLevels.WARN
     }
 ];
 

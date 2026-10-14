@@ -57,6 +57,9 @@ const reducer = function (state, action) {
                 if (action.data && action.data.message) {
                     newAlert.message = action.data.message;
                 }
+                if (action.data && action.data.onShowBlock) {
+                    newAlert.onShowBlock = action.data.onShowBlock;
+                }
 
                 newAlert.alertType = alertData.alertType || AlertTypes.STANDARD;
                 newAlert.closeButton = alertData.closeButton;
@@ -166,12 +169,14 @@ const closeAlertWithId = function (alertId) {
  * Action creator to show an alert with the given alertId.
  *
  * @param {string} alertId - id string of the alert to show
+ * @param {?object} data - optional message and onShowBlock callback
  * @return {object} - an object to be passed to the reducer.
  */
-const showStandardAlert = function (alertId) {
+const showStandardAlert = function (alertId, data) {
     return {
         type: SHOW_ALERT,
-        alertId
+        alertId,
+        data
     };
 };
 

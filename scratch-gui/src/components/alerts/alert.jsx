@@ -27,7 +27,9 @@ const AlertComponent = ({
     onCloseAlert,
     onDownload,
     onSaveNow,
+    message,
     onReconnect,
+    onShowBlock,
     showReconnect
 }) => (
     <Box
@@ -63,7 +65,7 @@ const AlertComponent = ({
                         )
                     }}
                 />
-            ) : content}
+            ) : (content || <span className={styles.alertDetail}>{message}</span>)}
         </div>
         <div className={styles.alertButtons}>
             {showSaveNow && (
@@ -87,6 +89,18 @@ const AlertComponent = ({
                         defaultMessage="Download"
                         description="Button to download project locally"
                         id="gui.alerts.download"
+                    />
+                </button>
+            )}
+            {onShowBlock && (
+                <button
+                    className={styles.alertConnectionButton}
+                    onClick={onShowBlock}
+                >
+                    <FormattedMessage
+                        defaultMessage="Show block"
+                        description="Button to scroll to the block that caused an error"
+                        id="tw.alerts.showBlock"
                     />
                 </button>
             )}
@@ -125,10 +139,12 @@ AlertComponent.propTypes = {
     iconSpinner: PropTypes.bool,
     iconURL: PropTypes.string,
     level: PropTypes.string,
+    message: PropTypes.string,
     onCloseAlert: PropTypes.func.isRequired,
     onDownload: PropTypes.func,
     onReconnect: PropTypes.func,
     onSaveNow: PropTypes.func,
+    onShowBlock: PropTypes.func,
     showDownload: PropTypes.bool,
     showReconnect: PropTypes.bool,
     showSaveNow: PropTypes.bool

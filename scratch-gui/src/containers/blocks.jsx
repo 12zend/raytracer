@@ -45,8 +45,10 @@ import {isTimeTravel2020} from '../reducers/time-travel';
 
 import {
     activateTab,
+    BLOCKS_TAB_INDEX,
     SOUNDS_TAB_INDEX
 } from '../reducers/editor-tab';
+import {showStandardAlert} from '../reducers/alerts';
 import AddonHooks from '../addons/hooks.js';
 import LoadScratchBlocksHOC from '../lib/tw-load-scratch-blocks-hoc.jsx';
 import {findTopBlock} from '../lib/backpack/code-payload.js';
@@ -133,8 +135,7 @@ class Blocks extends React.Component {
             'handleGPUDefinitionStart',
             'handleProcedureDefinition',
             'handleGPUBlocksChange',
-            'showGPUError',
-            'handleCloseGPUError'
+            'handleRaytracerError'
         ]);
         this.ScratchBlocks.prompt = this.handlePromptStart;
         this.ScratchBlocks.statusButtonCallback = this.handleConnectionModalStart;
@@ -246,7 +247,6 @@ class Blocks extends React.Component {
     shouldComponentUpdate (nextProps, nextState) {
         return (
             this.state.prompt !== nextState.prompt ||
-            this.state.gpuError !== nextState.gpuError ||
             this.props.isVisible !== nextProps.isVisible ||
             this._renderedToolboxXML !== nextProps.toolboxXML ||
             this.props.extensionLibraryVisible !== nextProps.extensionLibraryVisible ||
@@ -407,15 +407,36 @@ class Blocks extends React.Component {
     handleGPUBlocksChange (event) {
         if (event.type === this.ScratchBlocks.Events.BLOCK_CREATE) styleGPUDefinitions(this.workspace);
     }
-    showGPUError (message) {
-        this.setState({gpuError: message});
+    handleRaytracerError (error) {
+        // Blocks in loops fail every frame; show each distinct error once a second at most.
+        const key = `${error.targetId}:${error.blockId}:${error.message}`;
+        const now = Date.now();
+        if (key === this.lastRaytracerError && now - this.lastRaytracerErrorTime < 1000) return;
+        this.lastRaytracerError = key;
+        this.lastRaytracerErrorTime = now;
+        const canShow = error.blockId && error.targetId && this.props.vm.runtime.getTargetById(error.targetId);
+        this.props.onShowRaytracerError(error.message,
+            canShow ? () => this.showBlock(error.targetId, error.blockId) : null);
     }
-    handleCloseGPUError () {
-        this.setState({gpuError: null});
+    showBlock (targetId, blockId) {
+        this.props.onActivateBlocksTab();
+        const reveal = () => {
+            const block = this.workspace.getBlockById(blockId);
+            if (!block) return;
+            this.workspace.centerOnBlock(blockId);
+            block.select();
+        };
+        if (this.props.vm.editingTarget && this.props.vm.editingTarget.id === targetId) {
+            // Wait for the Code tab to become visible so the workspace has its size.
+            setTimeout(reveal);
+        } else {
+            this.pendingReveal = reveal;
+            this.props.vm.setEditingTarget(targetId);
+        }
     }
     attachVM () {
         this.props.vm.runtime.on('RAYTRACER_CREATE_GPU', this.handleGPUDefinitionStart);
-        this.props.vm.runtime.on('RAYTRACER_ERROR', this.showGPUError);
+        this.props.vm.runtime.on('RAYTRACER_ERROR', this.handleRaytracerError);
         this.workspace.addChangeListener(this.props.vm.blockListener);
         this.flyoutWorkspace = this.workspace
             .getFlyout()
@@ -437,7 +458,7 @@ class Blocks extends React.Component {
     }
     detachVM () {
         this.props.vm.runtime.removeListener('RAYTRACER_CREATE_GPU', this.handleGPUDefinitionStart);
-        this.props.vm.runtime.removeListener('RAYTRACER_ERROR', this.showGPUError);
+        this.props.vm.runtime.removeListener('RAYTRACER_ERROR', this.handleRaytracerError);
         this.props.vm.removeListener('SCRIPT_GLOW_ON', this.onScriptGlowOn);
         this.props.vm.removeListener('SCRIPT_GLOW_OFF', this.onScriptGlowOff);
         this.props.vm.removeListener('BLOCK_GLOW_ON', this.onBlockGlowOn);
@@ -588,6 +609,11 @@ class Blocks extends React.Component {
         // fresh workspace and we don't want any changes made to another sprites
         // workspace to be 'undone' here.
         this.workspace.clearUndo();
+
+        if (this.pendingReveal) {
+            setTimeout(this.pendingReveal);
+            this.pendingReveal = null;
+        }
     }
     handleMonitorsUpdate (monitors) {
         // Update the checkboxes of the relevant monitors.
@@ -776,12 +802,6 @@ class Blocks extends React.Component {
         /* eslint-enable no-unused-vars */
         return (
             <React.Fragment>
-                {this.state.gpuError ? <div
-                    role="alert"
-                    style={{position: 'absolute', zIndex: 100, background: '#fff0f0', padding: 12}}
-                >{'GPU: '}{this.state.gpuError}
-                    <button onClick={this.handleCloseGPUError}>{'Close'}</button>
-                </div> : null}
                 <DroppableBlocks
                     componentRef={this.setBlocks}
                     onDrop={this.handleDrop}
@@ -840,7 +860,9 @@ Blocks.propTypes = {
     locale: PropTypes.string.isRequired,
     messages: PropTypes.objectOf(PropTypes.string),
     onActivateColorPicker: PropTypes.func,
+    onActivateBlocksTab: PropTypes.func,
     onActivateCustomProcedures: PropTypes.func,
+    onShowRaytracerError: PropTypes.func,
     onOpenConnectionModal: PropTypes.func,
     onOpenSoundRecorder: PropTypes.func,
     onOpenCustomExtensionModal: PropTypes.func,
@@ -910,6 +932,9 @@ const mapStateToProps = state => ({
 const mapDispatchToProps = dispatch => ({
     onActivateColorPicker: callback => dispatch(activateColorPicker(callback)),
     onActivateCustomProcedures: (data, callback) => dispatch(activateCustomProcedures(data, callback)),
+    onActivateBlocksTab: () => dispatch(activateTab(BLOCKS_TAB_INDEX)),
+    onShowRaytracerError: (message, onShowBlock) =>
+        dispatch(showStandardAlert('raytracerError', {message, onShowBlock})),
     onOpenConnectionModal: id => {
         dispatch(setConnectionModalExtensionId(id));
         dispatch(openConnectionModal());

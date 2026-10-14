@@ -28,6 +28,7 @@ const AlertsComponent = ({
                     key={index}
                     level={a.level}
                     message={a.message}
+                    onShowBlock={a.onShowBlock} // eslint-disable-line react/jsx-handler-names
                     showDownload={a.showDownload}
                     showReconnect={a.showReconnect}
                     showSaveNow={a.showSaveNow}

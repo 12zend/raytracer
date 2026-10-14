@@ -34,6 +34,7 @@ class Alert extends React.Component {
             iconURL,
             message,
             onSaveNow,
+            onShowBlock,
             showDownload,
             showReconnect,
             showSaveNow
@@ -55,6 +56,7 @@ class Alert extends React.Component {
                     onDownload={downloadProject}
                     onReconnect={this.handleOnReconnect}
                     onSaveNow={onSaveNow}
+                    onShowBlock={onShowBlock}
                 />
             )}</SB3Downloader>
         );
@@ -86,6 +88,7 @@ Alert.propTypes = {
     onCloseAlert: PropTypes.func.isRequired,
     onOpenConnectionModal: PropTypes.func,
     onSaveNow: PropTypes.func,
+    onShowBlock: PropTypes.func,
     showDownload: PropTypes.bool,
     showReconnect: PropTypes.bool,
     showSaveNow: PropTypes.bool

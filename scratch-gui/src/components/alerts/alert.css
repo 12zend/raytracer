@@ -55,6 +55,13 @@
     padding-right: .5rem;
 }
 
+.alert-detail {
+    /* Raytracer errors can span several lines. */
+    line-height: 1.125rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
 .alert-buttons {
     display: flex;
     flex-direction: row;
