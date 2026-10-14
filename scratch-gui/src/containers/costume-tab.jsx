@@ -6,6 +6,7 @@ import VM from 'scratch-vm';
 
 import AssetPanel from '../components/asset-panel/asset-panel.jsx';
 import PaintEditorWrapper from './paint-editor-wrapper.jsx';
+import AssetPreview from '../components/raytracer/asset-preview.jsx';
 import {connect} from 'react-redux';
 import log from '../lib/log.js';
 import {handleFileUpload, costumeUpload} from '../lib/file-uploader.js';
@@ -98,9 +99,9 @@ class CostumeTab extends React.Component {
         } = props;
         const target = editingTarget && sprites[editingTarget] ? sprites[editingTarget] : stage;
         if (target && target.currentCostume) {
-            this.state = {selectedCostumeIndex: target.currentCostume};
+            this.state = {selectedCostumeIndex: target.currentCostume, selectedAssetId: null};
         } else {
-            this.state = {selectedCostumeIndex: 0};
+            this.state = {selectedCostumeIndex: 0, selectedAssetId: null};
         }
     }
     componentWillReceiveProps (nextProps) {
@@ -124,18 +125,38 @@ class CostumeTab extends React.Component {
             // https://github.com/LLK/scratch-vm/issues/967
             // Right now, you can land on the wrong costume if a costume changing script is running.
             if (oldTarget.costumeCount !== target.costumeCount) {
-                this.setState({selectedCostumeIndex: target.currentCostume});
+                this.setState({selectedCostumeIndex: target.currentCostume, selectedAssetId: null});
             }
         } else {
             // If switching editing targets, update the costume index
-            this.setState({selectedCostumeIndex: target.currentCostume});
+            this.setState({selectedCostumeIndex: target.currentCostume, selectedAssetId: null});
         }
     }
+    // Scene assets (models, motion, video, fonts) are listed after the costumes, read-only.
+    getSceneAssets () {
+        const raytracer = this.props.vm.runtime.raytracer;
+        return raytracer ? raytracer.scene.items : [];
+    }
+    getSceneAsset (index) {
+        return this.getSceneAssets()[index - this.props.vm.editingTarget.sprite.costumes.length];
+    }
     handleSelectCostume (costumeIndex) {
+        const asset = this.getSceneAsset(costumeIndex);
+        if (asset) {
+            this.setState({selectedAssetId: asset.id});
+            return;
+        }
         this.props.vm.editingTarget.setCostume(costumeIndex);
-        this.setState({selectedCostumeIndex: costumeIndex});
+        this.setState({selectedCostumeIndex: costumeIndex, selectedAssetId: null});
     }
     handleDeleteCostume (costumeIndex) {
+        const asset = this.getSceneAsset(costumeIndex);
+        if (asset) {
+            this.props.vm.runtime.raytracer.scene.remove(asset.id);
+            this.props.vm.runtime.emitProjectChanged();
+            this.setState({selectedAssetId: null});
+            return;
+        }
         const restoreCostumeFun = this.props.vm.deleteCostume(costumeIndex);
         this.props.dispatchUpdateRestore({
             restoreFun: restoreCostumeFun,
@@ -146,6 +167,11 @@ class CostumeTab extends React.Component {
         this.props.vm.duplicateCostume(costumeIndex);
     }
     handleExportCostume (costumeIndex) {
+        const asset = this.getSceneAsset(costumeIndex);
+        if (asset) {
+            downloadBlob(asset.name, this.props.vm.runtime.raytracer.scene.blob(asset.id));
+            return;
+        }
         const item = this.props.vm.editingTarget.sprite.costumes[costumeIndex];
         const blob = new Blob([
             this.props.vm.getExportedCostume(item)
@@ -227,10 +253,14 @@ class CostumeTab extends React.Component {
         // Models import after images so their textures can be found among the new costumes.
         imagesDone
             .then(async () => {
+                let imported = null;
                 for (const file of media) {
-                    await vm.runtime.raytracer.scene.import(file.name, await file.arrayBuffer());
+                    imported = await vm.runtime.raytracer.scene.import(file.name, await file.arrayBuffer());
                 }
-                if (media.length) vm.runtime.emitProjectChanged();
+                if (imported) {
+                    vm.runtime.emitProjectChanged();
+                    this.setState({selectedAssetId: imported.id});
+                }
             })
             .catch(error => {
                 log.error(error);
@@ -301,8 +331,19 @@ class CostumeTab extends React.Component {
             name: costume.name,
             asset: costume.asset,
             details: costume.size ? this.formatCostumeDetails(costume.size, costume.bitmapResolution) : null,
-            dragPayload: costume
+            dragPayload: costume,
+            deletable: target.costumes.length > 1
         })) : [];
+        const raytracer = vm.runtime.raytracer;
+        const assets = this.getSceneAssets();
+        const assetData = assets.map(item => ({
+            name: item.name,
+            url: raytracer.preview.thumbnail(item),
+            details: `${raytracer.preview.kind(item)} · ${item.format.toUpperCase()}`,
+            dragType: null,
+            duplicable: false
+        }));
+        const selectedAsset = assets.find(item => item.id === this.state.selectedAssetId);
         return (
             <AssetPanel
                 buttons={[
@@ -339,16 +380,23 @@ class CostumeTab extends React.Component {
                 ]}
                 dragType={DragConstants.COSTUME}
                 isRtl={isRtl}
-                items={costumeData}
-                selectedItemIndex={this.state.selectedCostumeIndex}
-                onDeleteClick={target && target.costumes && target.costumes.length > 1 ?
-                    this.handleDeleteCostume : null}
+                items={costumeData.concat(assetData)}
+                selectedItemIndex={selectedAsset ?
+                    costumeData.length + assets.indexOf(selectedAsset) :
+                    this.state.selectedCostumeIndex}
+                onDeleteClick={this.handleDeleteCostume}
                 onDrop={this.handleDrop}
                 onDuplicateClick={this.handleDuplicateCostume}
                 onExportClick={this.handleExportCostume}
                 onItemClick={this.handleSelectCostume}
             >
-                {target.costumes ?
+                {selectedAsset ? (
+                    <AssetPreview
+                        item={selectedAsset}
+                        preview={raytracer.preview}
+                    />
+                ) : null}
+                {target.costumes && !selectedAsset ?
                     <PaintEditorWrapper
                         selectedCostumeIndex={this.state.selectedCostumeIndex}
                     /> :

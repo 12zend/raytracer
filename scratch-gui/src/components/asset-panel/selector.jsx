@@ -71,15 +71,16 @@ const Selector = props => {
                             costumeURL={item.url}
                             details={item.details}
                             dragPayload={item.dragPayload}
-                            dragType={dragType}
+                            /* Items may opt out of dragging, deleting or duplicating (read-only assets). */
+                            dragType={'dragType' in item ? item.dragType : dragType}
                             id={index}
                             index={index}
                             name={item.name}
                             number={index + 1 /* 1-indexed */}
                             selected={index === selectedItemIndex}
                             onClick={onItemClick}
-                            onDeleteButtonClick={onDeleteClick}
-                            onDuplicateButtonClick={onDuplicateClick}
+                            onDeleteButtonClick={item.deletable === false ? null : onDeleteClick}
+                            onDuplicateButtonClick={item.duplicable === false ? null : onDuplicateClick}
                             onExportButtonClick={onExportClick}
                         />
                     </SortableAsset>
