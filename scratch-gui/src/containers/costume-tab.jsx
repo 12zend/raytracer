@@ -83,6 +83,7 @@ class CostumeTab extends React.Component {
             'handleDeleteCostume',
             'handleDuplicateCostume',
             'handleExportCostume',
+            'handleRenameAsset',
             'handleNewCostume',
             'handleNewBlankCostume',
             'handleSurpriseCostume',
@@ -132,7 +133,7 @@ class CostumeTab extends React.Component {
             this.setState({selectedCostumeIndex: target.currentCostume, selectedAssetId: null});
         }
     }
-    // Scene assets (models, motion, video, fonts) are listed after the costumes, read-only.
+    // Scene assets (models, motion, video, fonts) are listed after the costumes; only their names can change.
     getSceneAssets () {
         const raytracer = this.props.vm.runtime.raytracer;
         return raytracer ? raytracer.scene.items : [];
@@ -177,6 +178,11 @@ class CostumeTab extends React.Component {
             this.props.vm.getExportedCostume(item)
         ], {type: item.asset.assetType.contentType});
         downloadBlob(`${item.name}.${item.asset.dataFormat}`, blob);
+    }
+    handleRenameAsset (name) {
+        this.props.vm.runtime.raytracer.renameAsset(this.state.selectedAssetId, name);
+        // The asset list lives in the VM, not in redux, so re-render the list ourselves.
+        this.forceUpdate();
     }
     handleNewCostume (costume, fromCostumeLibrary, targetId) {
         const costumes = Array.isArray(costume) ? costume : [costume];
@@ -394,6 +400,7 @@ class CostumeTab extends React.Component {
                     <AssetPreview
                         item={selectedAsset}
                         preview={raytracer.preview}
+                        onRename={this.handleRenameAsset}
                     />
                 ) : null}
                 {target.costumes && !selectedAsset ?

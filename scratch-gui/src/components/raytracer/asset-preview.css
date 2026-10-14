@@ -16,28 +16,17 @@
 
 .header {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     flex-wrap: wrap;
     gap: 0.5rem;
 }
 
 .name {
-    font-size: 1rem;
-    font-weight: bold;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    flex: 0 1 16rem;
+    min-width: 6rem;
 }
 
 .meta {
-    color: $text-primary-transparent;
-}
-
-.badge {
-    margin-left: auto;
-    padding: 0.125rem 0.5rem;
-    border-radius: 1rem;
-    border: 1px solid $ui-black-transparent;
     color: $text-primary-transparent;
 }
 

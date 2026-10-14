@@ -8,6 +8,7 @@ const {
 } = require('three/examples/jsm/animation/MMDAnimationHelper');
 const {clone} = require('three/examples/jsm/utils/SkeletonUtils');
 const BVH = require('./bvh');
+const StringUtil = require('../util/string-util');
 const FORMATS = [
     'obj',
     'fbx',
@@ -384,6 +385,20 @@ class MediaScene {
                 }
             });
         }
+    }
+    /**
+     * Rename an asset, keeping names unique (“model” becomes “model2” if taken).
+     * @param {string} id Asset id.
+     * @param {string} name Requested name; blank keeps the current one.
+     * @returns {string} The name the asset ends up with.
+     */
+    rename (id, name) {
+        const item = this.find(id);
+        const requested = String(name).trim();
+        if (!requested || requested === item.name) return item.name;
+        item.name = StringUtil.unusedName(requested, this.items.filter(i => i !== item).map(i => i.name));
+        this.itemsChanged();
+        return item.name;
     }
     blob (id) {
         return new Blob([decode(this.find(id).data)]);

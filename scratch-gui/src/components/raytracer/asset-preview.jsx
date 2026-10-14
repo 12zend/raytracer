@@ -1,6 +1,10 @@
 import React from 'react';
 import PropTypes from 'prop-types';
+import BufferedInputHOC from '../forms/buffered-input-hoc.jsx';
+import Input from '../forms/input.jsx';
 import styles from './asset-preview.css';
+
+const BufferedInput = BufferedInputHOC(Input);
 
 const FONT_SAMPLES = [
     {size: 48, text: 'Aa Bb Cc 123'},
@@ -126,20 +130,24 @@ const HINTS = {
 };
 
 /**
- * Read-only preview for a scene asset in the costume list.
+ * Preview for a scene asset in the costume list. Only the name can be edited.
  * @param {object} props Component props.
  * @returns {React.Element} Preview panel.
  */
-const AssetPreview = ({item, preview}) => {
+const AssetPreview = ({item, preview, onRename}) => {
     const kind = preview.kind(item);
     return (
         <div className={styles.wrapper}>
             <div className={styles.header}>
-                <span className={styles.name}>{item.name}</span>
+                <BufferedInput
+                    className={styles.name}
+                    type="text"
+                    value={item.name}
+                    onSubmit={onRename}
+                />
                 <span className={styles.meta}>
                     {`${kind} · ${item.format.toUpperCase()} · ${formatSize(Math.floor(item.data.length * 3 / 4))}`}
                 </span>
-                <span className={styles.badge}>{'Read-only'}</span>
             </div>
             {item.missing && item.missing.length ? (
                 <div className={styles.warning}>
@@ -159,6 +167,7 @@ const AssetPreview = ({item, preview}) => {
 };
 AssetPreview.propTypes = {
     item: PropTypes.object.isRequired,
+    onRename: PropTypes.func.isRequired,
     preview: PropTypes.object.isRequired
 };
 

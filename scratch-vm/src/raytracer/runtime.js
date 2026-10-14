@@ -103,6 +103,32 @@ class RayRuntime {
         this.upload();
         this.gpu().run(args[layout.bufferId], compiled.source, uniforms);
     }
+    /**
+     * Rename a scene asset and the Add Object / Apply motion blocks that pick it by name.
+     * @param {string} id Asset id.
+     * @param {string} name Requested name.
+     * @returns {string} The name the asset ends up with.
+     */
+    renameAsset (id, name) {
+        const oldName = this.scene.find(id).name;
+        const newName = this.scene.rename(id, name);
+        if (newName === oldName) return newName;
+        for (const target of this.runtime.targets) {
+            if (!target.isOriginal) continue;
+            const blocks = target.blocks;
+            for (const block of Object.values(blocks._blocks)) {
+                if (block.opcode !== 'rt3d_add' && block.opcode !== 'rt3d_motion') continue;
+                // Only the dropdown (or a typed name in older projects), not a reporter dropped on it.
+                const input = block.inputs.MEDIA;
+                const shadow = input && input.shadow && blocks.getBlock(input.shadow);
+                const field = shadow && (shadow.fields.media || shadow.fields.motion || shadow.fields.TEXT);
+                if (field && field.value === oldName) field.value = newName;
+            }
+            blocks.resetCache();
+        }
+        this.runtime.emitProjectChanged();
+        return newName;
+    }
     render (name) {
         const rendered = this.gpu().render(name);
         const canvas = this.displayCanvas || (this.displayCanvas = document.createElement('canvas'));
