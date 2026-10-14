@@ -1,0 +1,12 @@
+[submodule "scratch-vm"]
+ path = scratch-vm
+ url = https://github.com/TurboWarp/scratch-vm.git
+[submodule "scratch-gui"]
+ path = scratch-gui
+ url = https://github.com/TurboWarp/scratch-gui.git
+[submodule "scratch-render"]
+ path = scratch-render
+ url = https://github.com/TurboWarp/scratch-render.git
+[submodule "scratch-blocks"]
+ path = scratch-blocks
+ url = https://github.com/TurboWarp/scratch-blocks.git
