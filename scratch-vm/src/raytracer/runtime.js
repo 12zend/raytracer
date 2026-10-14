@@ -2,6 +2,7 @@ const MediaScene = require('./media');
 const preview = require('./preview');
 const GPUCompiler = require('./compiler');
 const Cast = require('../util/cast');
+const {RaytracerError} = require('./errors');
 const RayBuffers = require('scratch-render/src/raytracer/buffers');
 const VECTOR_KEYS = ['x', 'y', 'z', 'w'];
 /**
@@ -17,7 +18,7 @@ const argumentValue = (value, kind, name) => {
         const keys = Object.keys(value);
         const size = keys.length;
         if (size < 2 || size > 4 || keys.some((k, i) => k !== VECTOR_KEYS[i])) {
-            throw new Error(`GPU argument ${name} must be a number or vec2/vec3/vec4`);
+            throw new RaytracerError(`Input “${name}” must be a number or a vec2, vec3 or vec4.`);
         }
         return {type: `vec${size}`, value: keys.map(k => Cast.toNumber(value[k]))};
     }
@@ -69,7 +70,10 @@ class RayRuntime {
                 return prototype && prototype.mutation && String(prototype.mutation.gpu) === 'true' &&
                     prototype.mutation.proccode === mutation.proccode;
             });
-        if (!definition) throw new Error(`Missing GPU definition: ${mutation.proccode}`);
+        if (!definition) {
+            const name = mutation.proccode.replace(/ %[nbs]/g, '').trim();
+            throw new RaytracerError(`The definition of GPU block “${name}” was deleted. Create it again or remove this block.`);
+        }
         const layout = GPUCompiler.readDefinition(blocks, definition);
         // Argument types follow the values passed in, so one definition accepts float or vec inputs.
         const values = layout.ids.map((id, i) => argumentValue(args[id], layout.kinds[i], layout.names[i]));
@@ -127,18 +131,27 @@ class RayRuntime {
         this.skin = null;
         this.drawable = null;
     }
-    safe (fn) {
+    /**
+     * Run a block and report failures to the editor (RAYTRACER_ERROR) with the block to reveal.
+     * @param {function} fn Block implementation.
+     * @param {?object} util Block utility of the running thread.
+     * @returns {*} Block result.
+     */
+    safe (fn, util) {
+        const report = e => {
+            const thread = util && util.thread;
+            this.runtime.emit('RAYTRACER_ERROR', {
+                message: e.message,
+                blockId: e.blockId || (thread && thread.peekStack ? thread.peekStack() : null),
+                targetId: util && util.target ? util.target.id : null
+            });
+            throw e;
+        };
         try {
             const value = fn();
-            return value && value.catch ?
-                value.catch(e => {
-                    this.runtime.emit('RAYTRACER_ERROR', e.message);
-                    throw e;
-                }) :
-                value;
+            return value && value.catch ? value.catch(report) : value;
         } catch (e) {
-            this.runtime.emit('RAYTRACER_ERROR', e.message);
-            throw e;
+            return report(e);
         }
     }
 }

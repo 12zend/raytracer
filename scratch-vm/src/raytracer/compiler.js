@@ -1,4 +1,5 @@
 const library = require('./shader');
+const {RaytracerError, typeName} = require('./errors');
 const TYPES = ['float', 'bool', 'vec2', 'vec3', 'vec4'];
 const IMPLICIT = ['uv', 'buffer'];
 /**
@@ -13,12 +14,12 @@ const readDefinition = (blocks, definition) => {
     const input = definition.inputs && definition.inputs.custom_block;
     const prototype = input && get(input.block);
     const mutation = prototype && prototype.mutation;
-    if (!mutation || String(mutation.gpu) !== 'true') throw new Error('Not a GPU definition');
+    if (!mutation || String(mutation.gpu) !== 'true') throw new RaytracerError('This is not a GPU block definition.');
     const names = JSON.parse(mutation.argumentnames || '[]');
     const ids = JSON.parse(mutation.argumentids || '[]');
     const kinds = (mutation.proccode.match(/(^|[^\\])%[nbs]/g) || []).map(m => m.slice(-1));
     if (names.slice(-2).join() !== IMPLICIT.join() || ids.length !== names.length || kinds.length !== names.length) {
-        throw new Error('GPU definition is missing its implicit uv and buffer inputs');
+        throw new RaytracerError('This GPU block lost its uv and buffer inputs. Create it again with “Make a GPU block”.', definition.id);
     }
     return {
         prototype,
@@ -45,10 +46,10 @@ class GPUCompiler {
         const params = layout.names.map((name, i) => ({name, type: types[i] || 'float'}));
         params.forEach((p, i) => {
             if (!TYPES.includes(p.type) || this.params.has(p.name) || IMPLICIT.includes(p.name)) {
-                throw new Error(`Invalid GPU argument ${p.name}: ${p.type}`);
+                throw new RaytracerError(`Input “${p.name}” cannot be used on the GPU. Rename it, or pass a number or vector.`, definition.id);
             }
             if ((layout.kinds[i] === 'b') !== (p.type === 'bool')) {
-                throw new Error(`GPU argument ${p.name} must be ${layout.kinds[i] === 'b' ? 'boolean' : 'a number or vector'}`);
+                throw new RaytracerError(`Input “${p.name}” must be ${layout.kinds[i] === 'b' ? 'a boolean' : 'a number or vector'}.`, definition.id);
             }
             this.params.set(p.name, {type: p.type, code: `arg${i}`});
         });
@@ -68,23 +69,23 @@ class GPUCompiler {
         const b = this.blocks.getBlock ?
             this.blocks.getBlock(id) :
             this.blocks[id];
-        if (!b) throw new Error(`Missing GPU block ${id}`);
+        if (!b) throw new RaytracerError('A block inside this GPU block is missing. Try reloading the project.');
         return b;
     }
     error (b, message) {
-        throw new Error(`${b.opcode} (${b.id}): ${message}`);
+        throw new RaytracerError(message, b.id);
     }
     input (b, name) {
         const i = b.inputs[name];
         return i && i.block ? this.expr(i.block) : {type: 'float', code: '0.0'};
     }
     require (v, type, b) {
-        if (v.type !== type) this.error(b, `Expected ${type}, got ${v.type}`);
+        if (v.type !== type) this.error(b, `This input needs ${typeName(type)}, but got ${typeName(v.type)}.`);
         return v.code;
     }
     expr (id) {
         const b = this.block(id);
-        if (this.visiting.has(id)) this.error(b, 'Cyclic expression');
+        if (this.visiting.has(id)) this.error(b, 'This block is plugged into itself.');
         this.visiting.add(id);
         try {
             return this.expression(b);
@@ -100,7 +101,7 @@ class GPUCompiler {
         if (op.startsWith('math_') || op === 'text') {
             const n = Number(field(op === 'text' ? 'TEXT' : 'NUM'));
             if (!Number.isFinite(n)) {
-                this.error(b, 'GPU constants must be finite numbers');
+                this.error(b, `“${field(op === 'text' ? 'TEXT' : 'NUM')}” is not a number. GPU blocks only work with numbers, booleans and vectors.`);
             }
             return result('float', Number.isInteger(n) ? `${n}.0` : String(n));
         }
@@ -111,14 +112,14 @@ class GPUCompiler {
                 return result('vec4', 'texture(previousBuffer,uv)');
             }
             if (!this.params.has(name)) {
-                this.error(b, `Unknown argument ${name}`);
+                this.error(b, `“${name}” is not an input of this GPU block.`);
             }
             return this.params.get(name);
         }
         if (op === 'data_variable') {
             const key = b.fields.VARIABLE.id || field('VARIABLE');
             if (!this.vars.has(key)) {
-                this.error(b, 'Set GPU local variable before reading it');
+                this.error(b, `Set “${field('VARIABLE')}” before using it in a GPU block.`);
             }
             return this.vars.get(key);
         }
@@ -160,7 +161,7 @@ class GPUCompiler {
                             .map(k => [k, 'float'])
                     );
             if (!fields[prop]) {
-                this.error(b, `Property ${key} does not exist on ${v.type}`);
+                this.error(b, `${typeName(v.type).replace(/^a/, 'A')} has no property “${key}”. Available: ${Object.keys(fields).join(', ')}.`);
             }
             return result(fields[prop], `(${v.code}).${prop}`);
         }
@@ -169,6 +170,9 @@ class GPUCompiler {
                 'Hit',
                 `traceRay(vec3(${['OX', 'OY', 'OZ'].map(k => this.require(input(k), 'float', b)).join(',')}),vec3(${['DX', 'DY', 'DZ'].map(k => this.require(input(k), 'float', b)).join(',')}))`
             );
+        }
+        if (op === 'rtray_hit') {
+            return result('bool', `(${this.require(input('RAY'), 'Hit', b)}).hit`);
         }
         if (op === 'rtray_reflect' || op === 'rtray_refract') {
             return result(
@@ -179,7 +183,7 @@ class GPUCompiler {
         if (op === 'rtgpu_normalize') {
             const v = input('V');
             if (!/^vec[234]$/.test(v.type)) {
-                this.error(b, 'normalize requires a vector');
+                this.error(b, `normalize needs a vector, but got ${typeName(v.type)}.`);
             }
             return result(v.type, `normalize(${v.code})`);
         }
@@ -187,7 +191,7 @@ class GPUCompiler {
             const a = input('A');
             const c = input('B');
             if (!/^vec[234]$/.test(a.type) || a.type !== c.type) {
-                this.error(b, 'dot requires matching vectors');
+                this.error(b, 'dot needs two vectors of the same size.');
             }
             return result('float', `dot(${a.code},${c.code})`);
         }
@@ -207,7 +211,7 @@ class GPUCompiler {
                 c.type === 'Hit' ||
                 (a.type !== c.type && a.type !== 'float' && c.type !== 'float')
             ) {
-                this.error(b, 'Incompatible arithmetic types');
+                this.error(b, 'These values cannot be combined. Use numbers, or vectors of the same size (a vector can be multiplied by a number).');
             }
             return result(
                 a.type === 'float' ? c.type : a.type,
@@ -275,14 +279,14 @@ class GPUCompiler {
             if (f === 'log') return result('float', `(log(${n})/log(10.0))`);
             if (f === '10 ^') return result('float', `pow(10.0,${n})`);
         }
-        this.error(b, 'Unsupported reporter in GPU definition');
+        this.error(b, 'This block cannot run inside a GPU block.');
     }
     stack (id) {
         let code = '';
         const seen = new Set();
         while (id) {
             const b = this.block(id);
-            if (seen.has(id)) this.error(b, 'Cyclic stack');
+            if (seen.has(id)) this.error(b, 'This script loops back into itself.');
             seen.add(id);
             const input = k => this.input(b, k);
             const sub = k => this.stack(b.inputs[k] && b.inputs[k].block);
@@ -300,7 +304,7 @@ class GPUCompiler {
                 );
                 if (!this.vars.has(key)) {
                     if (b.opcode === 'data_changevariableby') {
-                        this.error(b, 'Set variable before changing it');
+                        this.error(b, `Set “${b.fields.VARIABLE.value}” before changing it in a GPU block.`);
                     }
                     this.vars.set(key, {
                         type: v.type,
@@ -319,7 +323,7 @@ class GPUCompiler {
                 b.opcode === 'control_if_else'
             ) {
                 code += `if(${this.require(input('CONDITION'), 'bool', b)}){\n${sub('SUBSTACK')}}${b.opcode === 'control_if_else' ? `else{\n${sub('SUBSTACK2')}}` : ''}\n`;
-            } else this.error(b, 'Unsupported command in GPU definition');
+            } else this.error(b, 'This block cannot run inside a GPU block.');
             id = b.next;
         }
         return code;

@@ -48,7 +48,7 @@ class MediaScene {
         const format = name.split('.').pop()
             .toLowerCase();
         if (!FORMATS.includes(format)) {
-            throw new Error(`Unsupported media: ${format}`);
+            throw new Error(`“.${format}” files are not supported.`);
         }
         const item = {
             id: `media-${Date.now()}-${Math.random().toString(36)
@@ -173,7 +173,7 @@ class MediaScene {
     }
     find (name) {
         const item = this.items.find(i => i.id === name || i.name === name);
-        if (!item) throw new Error(`Unknown Media: ${name}`);
+        if (!item) throw new Error(`There is no costume or 3D asset named “${name}”.`);
         return item;
     }
     clear () {
@@ -209,9 +209,9 @@ class MediaScene {
                     map: new THREE.Texture(snapshot)
                 })
             );
-        } else throw new Error('Add Object requires a model, image or video');
+        } else throw new Error(`“${item.name}” cannot be added to the scene. Add Object needs a model, image or video.`);
         if (!['XYZ', 'XZY', 'YXZ', 'YZX', 'ZXY', 'ZYX'].includes(order)) {
-            throw new Error('Invalid rotation order');
+            throw new Error('Rotation order must be one of XYZ, XZY, YXZ, YZX, ZXY or ZYX.');
         }
         object.position.set(pos.x, pos.y, pos.z);
         object.rotation.set(
@@ -242,9 +242,7 @@ class MediaScene {
         const item = this.find(name);
         const mesh = this.objects[Number(index)];
         if (!mesh || !mesh.isSkinnedMesh) {
-            throw new Error(
-                'Motion requires a PMX scene object (zero-based index)'
-            );
+            throw new Error(`Scene object ${index} is not a PMX model. Objects are numbered from 0 in the order they were added.`);
         }
         if (item.pose) new MMDAnimationHelper().pose(mesh, item.pose);
         else if (item.motion) {
@@ -255,7 +253,7 @@ class MediaScene {
             const mixer = new THREE.AnimationMixer(mesh);
             mixer.clipAction(clip).play();
             mixer.setTime(Number(frame) / 30);
-        } else throw new Error('Choose VMD motion or VPD pose media');
+        } else throw new Error(`“${item.name}” is not a VMD motion or VPD pose.`);
         mesh.updateMatrixWorld(true);
         this.version++;
     }
@@ -276,7 +274,7 @@ class MediaScene {
             if (!tiles.has(image)) {
                 const slot = tiles.size;
                 if (slot >= 64) {
-                    throw new Error('Scene supports up to 64 image textures');
+                    throw new Error('A scene can use at most 64 different textures.');
                 }
                 const x = (slot % 8) * 256;
                 const y = Math.floor(slot / 8) * 256;
@@ -351,7 +349,7 @@ class MediaScene {
         this.dispose();
         for (const item of items || []) {
             if (!FORMATS.includes(item.format)) {
-                throw new Error('Unsupported stored Media format');
+                throw new Error(`This project contains an unsupported 3D asset (“${item.name}”).`);
             }
             await this.load(item);
             this.items.push(item);

@@ -93,6 +93,8 @@ const definitions = {
                     ])
                 )
             ),
+            // Boolean so it fits if / repeat until conditions (Get prop is a round reporter).
+            {...reporter('hit', '[RAY] hit?', {RAY: arg()}), blockType: 'Boolean'},
             reporter('reflect', 'reflect [I] [N]', {I: arg(), N: arg()}),
             reporter('refract', 'refract [I] [N] [IOR]', {
                 I: arg(),
@@ -153,9 +155,7 @@ const methods = {
                 const out = a.OBJ.slice();
                 const idx = Number(a.IDX);
                 if (!Number.isInteger(idx) || idx < 0 || idx > out.length) {
-                    throw new Error(
-                        'Array index is zero-based and must be within the array'
-                    );
+                    throw new Error(`Index must be a whole number from 0 to ${out.length} (it starts at 0).`);
                 }
                 out.splice(idx, 0, a.PROP);
                 return out;
@@ -183,6 +183,7 @@ const methods = {
                     [a.OX, a.OY, a.OZ].map(Number),
                     [a.DX, a.DY, a.DZ].map(Number)
                 ),
+        hit: a => !!(a.RAY && typeof a.RAY === 'object' && a.RAY.hit),
         reflect: a => reflect(a.I, a.N),
         refract: a => refract(a.I, a.N, a.IOR)
     },
@@ -243,7 +244,7 @@ module.exports = Object.fromEntries(
                 this.rt = getRuntime(runtime);
                 for (const [name, fn] of Object.entries(methods[id])) {
                     this[name] = (a, u) =>
-                        this.rt.safe(() => fn(a, this.rt, u));
+                        this.rt.safe(() => fn(a, this.rt, u), u);
                 }
             }
             getInfo () {
