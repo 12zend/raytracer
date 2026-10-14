@@ -37,3 +37,12 @@ TTF / OTF / WOFF を読み込めます。画像はコスチューム、それ以
 
 `examples/ambient-occlusion.sb3` は、初回レイ → 半球方向へ 10 サンプル → AO を GPU 定義で組んだ例です
 （`node scripts/create-example.cjs` で再生成）。
+
+## License
+
+このリポジトリ全体は GNU General Public License v3.0 で配布します（[LICENSE](LICENSE)）。
+
+取り込んだ TurboWarp のディレクトリは、それぞれのライセンスも引き続き有効です。
+
+- `scratch-gui`, `scratch-blocks`: GPL-3.0
+- `scratch-vm`, `scratch-render`: MPL-2.0（GPL と組み合わせ可能。これらのファイルを変更した部分は MPL-2.0 のまま公開します）

@@ -1,6 +1,7 @@
 {
   "name": "raytracer-workspace",
   "private": true,
+  "license": "GPL-3.0-only",
   "scripts": {
     "setup": "node scripts/setup.mjs",
     "start": "npm --prefix scratch-gui start",
