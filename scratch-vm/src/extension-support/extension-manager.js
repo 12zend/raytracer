@@ -10,6 +10,7 @@ const SecurityManager = require('./tw-security-manager');
 // TODO: change extension spec so that library info, including extension ID, can be collected through static methods
 
 const defaultBuiltinExtensions = {
+    ...Object.fromEntries(Object.keys(require('../raytracer/extensions')).map(id => [id, () => require('../raytracer/extensions')[id]])),
     // This is an example that isn't loaded with the other core blocks,
     // but serves as a reference for loading core blocks as extensions.
     coreExample: () => require('../blocks/scratch3_core_example'),

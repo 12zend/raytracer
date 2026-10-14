@@ -733,6 +733,7 @@ const serialize = function (runtime, targetId, {allowOptimization = true} = {}) 
         obj.extensionStorage = globalExtensionStorage;
     }
 
+    obj.raytracerMedia = runtime.raytracer ? runtime.raytracer.scene.serialize() : [];
     obj.targets = serializedTargets;
 
     obj.monitors = serializeMonitors(runtime.getMonitorState(), runtime, extensions);
@@ -1522,6 +1523,10 @@ const checkPlatformCompatibility = (json, runtime) => {
  */
 const deserialize = async function (json, runtime, zip, isSingleSprite) {
     await checkPlatformCompatibility(json, runtime);
+    if (!isSingleSprite && runtime.raytracer) {
+        runtime.raytracer.reset();
+        await runtime.raytracer.scene.restore(json.raytracerMedia || []);
+    }
 
     const extensions = {
         extensionIDs: new Set(),

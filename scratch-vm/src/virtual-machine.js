@@ -205,7 +205,7 @@ class VirtualMachine extends EventEmitter {
         this.runtime.extensionManager = this.extensionManager;
 
         // Load core extensions
-        for (const id of CORE_EXTENSIONS) {
+        for (const id of [...CORE_EXTENSIONS, 'rtobject', 'rt3d', 'rtray', 'rtbuffer', 'rtgpu']) {
             this.extensionManager.loadExtensionIdSync(id);
         }
 
