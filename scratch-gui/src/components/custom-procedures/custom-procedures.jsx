@@ -103,20 +103,22 @@ const CustomProcedures = props => (
                     </div>
                 </div>
             </div>
-            <div className={styles.checkboxRow}>
-                <label>
-                    <input
-                        checked={props.warp}
-                        type="checkbox"
-                        onChange={props.onToggleWarp}
-                    />
-                    <FormattedMessage
-                        defaultMessage="Run without screen refresh"
-                        description="Label for checkbox to run without screen refresh"
-                        id="gui.customProcedures.runWithoutScreenRefresh"
-                    />
-                </label>
-            </div>
+            {props.showWarp ? (
+                <div className={styles.checkboxRow}>
+                    <label>
+                        <input
+                            checked={props.warp}
+                            type="checkbox"
+                            onChange={props.onToggleWarp}
+                        />
+                        <FormattedMessage
+                            defaultMessage="Run without screen refresh"
+                            description="Label for checkbox to run without screen refresh"
+                            id="gui.customProcedures.runWithoutScreenRefresh"
+                        />
+                    </label>
+                </div>
+            ) : null}
             <Box className={styles.buttonRow}>
                 <button
                     className={styles.cancelButton}
@@ -152,7 +154,12 @@ CustomProcedures.propTypes = {
     onCancel: PropTypes.func.isRequired,
     onOk: PropTypes.func.isRequired,
     onToggleWarp: PropTypes.func.isRequired,
+    showWarp: PropTypes.bool,
     warp: PropTypes.bool.isRequired
+};
+
+CustomProcedures.defaultProps = {
+    showWarp: true
 };
 
 export default injectIntl(CustomProcedures);

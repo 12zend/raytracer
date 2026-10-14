@@ -150,6 +150,7 @@ class CustomProcedures extends React.Component {
                 onCancel={this.handleCancel}
                 onOk={this.handleOk}
                 onToggleWarp={this.handleToggleWarp}
+                showWarp={this.props.showWarp}
             />
         );
     }
@@ -159,6 +160,7 @@ CustomProcedures.propTypes = {
     isRtl: PropTypes.bool,
     mutator: PropTypes.instanceOf(Element),
     onRequestClose: PropTypes.func.isRequired,
+    showWarp: PropTypes.bool,
     options: PropTypes.shape({
         media: PropTypes.string,
         zoom: PropTypes.shape({

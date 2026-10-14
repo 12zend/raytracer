@@ -815,6 +815,8 @@ class Blocks extends React.Component {
                         options={{
                             media: options.media
                         }}
+                        /* GPU blocks run as a single draw call, so screen refresh does not apply. */
+                        showWarp={!this.gpuProcedureOpen}
                         onRequestClose={this.handleCustomProceduresClose}
                     />
                 ) : null}
