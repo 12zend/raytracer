@@ -1,6 +1,27 @@
 const MediaScene = require('./media');
 const GPUCompiler = require('./compiler');
+const Cast = require('../util/cast');
 const RayBuffers = require('scratch-render/src/raytracer/buffers');
+const VECTOR_KEYS = ['x', 'y', 'z', 'w'];
+/**
+ * Convert a block value into a typed GPU uniform.
+ * @param {*} value Value passed to the GPU block.
+ * @param {string} kind Procedure argument kind: 's' / 'n' or 'b'.
+ * @param {string} name Argument name for diagnostics.
+ * @returns {{type: string, value: *}} Uniform type and value.
+ */
+const argumentValue = (value, kind, name) => {
+    if (kind === 'b') return {type: 'bool', value: Cast.toBoolean(value)};
+    if (value && typeof value === 'object') {
+        const keys = Object.keys(value);
+        const size = keys.length;
+        if (size < 2 || size > 4 || keys.some((k, i) => k !== VECTOR_KEYS[i])) {
+            throw new Error(`GPU argument ${name} must be a number or vec2/vec3/vec4`);
+        }
+        return {type: `vec${size}`, value: keys.map(k => Cast.toNumber(value[k]))};
+    }
+    return {type: 'float', value: Cast.toNumber(value)};
+};
 class RayRuntime {
     constructor (runtime) {
         this.runtime = runtime;
@@ -36,36 +57,39 @@ class RayRuntime {
         return b;
     }
     call (args, util) {
-        const block = util.target.blocks.getBlock(util.thread.peekStack());
-        const mutation = block.mutation;
-        const definition = util.target.blocks
-            .getScripts()
-            .map(id => util.target.blocks.getBlock(id))
-            .find(
-                b =>
-                    b.opcode === 'rtgpu_define' &&
-                    b.mutation &&
-                    b.mutation.name === mutation.name
-            );
-        if (!definition) {
-            throw new Error(`Missing GPU definition: ${mutation.name}`);
-        }
-        const cacheKey = util.target.blocks._cache.compiledScripts;
+        const blocks = util.target.blocks;
+        const mutation = blocks.getBlock(util.thread.peekStack()).mutation;
+        const definition = blocks.getScripts()
+            .map(id => blocks.getBlock(id))
+            .find(b => {
+                if (b.opcode !== 'procedures_definition' || !b.inputs.custom_block) return false;
+                const prototype = blocks.getBlock(b.inputs.custom_block.block);
+                return prototype && prototype.mutation && String(prototype.mutation.gpu) === 'true' &&
+                    prototype.mutation.proccode === mutation.proccode;
+            });
+        if (!definition) throw new Error(`Missing GPU definition: ${mutation.proccode}`);
+        const layout = GPUCompiler.readDefinition(blocks, definition);
+        // Argument types follow the values passed in, so one definition accepts float or vec inputs.
+        const values = layout.ids.map((id, i) => argumentValue(args[id], layout.kinds[i], layout.names[i]));
+        const types = values.map(v => v.type);
+        const cacheKey = blocks._cache.compiledScripts;
         let cache = this.kernels.get(cacheKey);
         if (!cache) {
-            cache = new Map(); this.kernels.set(cacheKey, cache);
+            cache = new Map();
+            this.kernels.set(cacheKey, cache);
         }
-        let compiled = cache.get(definition.id);
+        const key = `${definition.id}:${types.join()}`;
+        let compiled = cache.get(key);
         if (!compiled) {
-            compiled = new GPUCompiler().compile(util.target.blocks, definition);
-            cache.set(definition.id, compiled);
+            compiled = new GPUCompiler().compile(blocks, definition, types);
+            cache.set(key, compiled);
         }
         const uniforms = {};
-        compiled.params.forEach((p, i) => {
-            uniforms[`arg${i}`] = {type: p.type, value: args[`ARG${i}`]};
+        values.forEach((v, i) => {
+            uniforms[`arg${i}`] = v;
         });
         this.upload();
-        this.gpu().run(args.BUFFER, compiled.source, uniforms);
+        this.gpu().run(args[layout.bufferId], compiled.source, uniforms);
     }
     render (name) {
         const rendered = this.gpu().render(name);

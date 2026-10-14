@@ -1,20 +1,54 @@
 const library = require('./shader');
 const TYPES = ['float', 'bool', 'vec2', 'vec3', 'vec4'];
+const IMPLICIT = ['uv', 'buffer'];
+/**
+ * Read a GPU definition: a procedures_definition whose prototype has gpu="true".
+ * The last two arguments are the implicit uv and buffer.
+ * @param {object} blocks Block container or plain map.
+ * @param {object} definition procedures_definition block.
+ * @returns {{prototype: object, names: string[], ids: string[], kinds: string[]}} Argument layout.
+ */
+const readDefinition = (blocks, definition) => {
+    const get = id => (blocks.getBlock ? blocks.getBlock(id) : blocks[id]);
+    const input = definition.inputs && definition.inputs.custom_block;
+    const prototype = input && get(input.block);
+    const mutation = prototype && prototype.mutation;
+    if (!mutation || String(mutation.gpu) !== 'true') throw new Error('Not a GPU definition');
+    const names = JSON.parse(mutation.argumentnames || '[]');
+    const ids = JSON.parse(mutation.argumentids || '[]');
+    const kinds = (mutation.proccode.match(/(^|[^\\])%[nbs]/g) || []).map(m => m.slice(-1));
+    if (names.slice(-2).join() !== IMPLICIT.join() || ids.length !== names.length || kinds.length !== names.length) {
+        throw new Error('GPU definition is missing its implicit uv and buffer inputs');
+    }
+    return {
+        prototype,
+        names: names.slice(0, -2),
+        ids: ids.slice(0, -2),
+        kinds: kinds.slice(0, -2),
+        bufferId: ids[ids.length - 1]
+    };
+};
 class GPUCompiler {
-    compile (blocks, definition) {
+    /**
+     * @param {object} blocks Block container or plain map.
+     * @param {object} definition procedures_definition block.
+     * @param {string[]} types GLSL type of each user argument, decided by the caller's values.
+     * @returns {{params: object[], source: string}} Uniform layout and fragment shader.
+     */
+    compile (blocks, definition, types = []) {
         this.blocks = blocks;
         this.vars = new Map();
         this.params = new Map();
         this.serial = 0;
         this.visiting = new Set();
-        const params = JSON.parse(definition.mutation.params || '[]');
+        const layout = readDefinition(blocks, definition);
+        const params = layout.names.map((name, i) => ({name, type: types[i] || 'float'}));
         params.forEach((p, i) => {
-            if (
-                !TYPES.includes(p.type) ||
-                this.params.has(p.name) ||
-                ['uv', 'buffer'].includes(p.name)
-            ) {
-                throw new Error('Invalid GPU parameter');
+            if (!TYPES.includes(p.type) || this.params.has(p.name) || IMPLICIT.includes(p.name)) {
+                throw new Error(`Invalid GPU argument ${p.name}: ${p.type}`);
+            }
+            if ((layout.kinds[i] === 'b') !== (p.type === 'bool')) {
+                throw new Error(`GPU argument ${p.name} must be ${layout.kinds[i] === 'b' ? 'boolean' : 'a number or vector'}`);
             }
             this.params.set(p.name, {type: p.type, code: `arg${i}`});
         });
@@ -70,16 +104,8 @@ class GPUCompiler {
             }
             return result('float', Number.isInteger(n) ? `${n}.0` : String(n));
         }
-        if (op === 'rtgpu_uv') return result('vec2', 'uv');
-        if (op === 'rtgpu_buffer') {
-            return result('vec4', 'texture(previousBuffer,uv)');
-        }
-        if (
-            op === 'rtgpu_argument' ||
-            op === 'argument_reporter_string_number' ||
-            op === 'argument_reporter_boolean'
-        ) {
-            const name = field('NAME') || field('VALUE');
+        if (op === 'argument_reporter_string_number' || op === 'argument_reporter_boolean') {
+            const name = field('VALUE');
             if (name === 'uv') return result('vec2', 'uv');
             if (name === 'buffer') {
                 return result('vec4', 'texture(previousBuffer,uv)');
@@ -299,4 +325,5 @@ class GPUCompiler {
         return code;
     }
 }
+GPUCompiler.readDefinition = readDefinition;
 module.exports = GPUCompiler;

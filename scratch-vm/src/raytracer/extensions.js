@@ -124,12 +124,11 @@ const definitions = {
         color1: '#d84d83',
         blocks: [
             {blockType: 'button', text: 'Make a GPU block', func: 'create'},
-            reporter('uv', 'uv'),
-            reporter('buffer', 'buffer'),
             reporter('normalize', 'normalize [V]', {V: arg()}),
             reporter('dot', 'dot [A] [B]', {A: arg(), B: arg()}),
             {
-                ...command('call', 'GPU [BUFFER]', {BUFFER: arg('main')}),
+                // Rendered by scratch-blocks/raytracer from the definition's mutation.
+                ...command('call', 'GPU'),
                 hideFromPalette: true
             }
         ]
@@ -224,8 +223,6 @@ const methods = {
     },
     rtgpu: {
         create: (a, r) => r.runtime.emit('RAYTRACER_CREATE_GPU'),
-        uv: () => vector(2, [0, 0]),
-        buffer: () => vector(4, [0, 0, 0, 0]),
         normalize: a => {
             const keys = Object.keys(a.V);
             const len = Math.hypot(...keys.map(k => a.V[k]));
