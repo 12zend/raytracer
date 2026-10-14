@@ -60,7 +60,10 @@ const base = {
     },
     resolve: {
         symlinks: false,
+        modules: ['node_modules', path.resolve(__dirname, 'node_modules')],
         alias: {
+            'scratch-vm$': path.resolve(__dirname, '../scratch-vm/src/index.js'),
+            'scratch-render$': path.resolve(__dirname, '../scratch-render/src/index.js'),
             'text-encoding$': path.resolve(__dirname, 'src/lib/tw-text-encoder'),
             'scratch-render-fonts$': path.resolve(__dirname, 'src/lib/tw-scratch-render-fonts')
         }
@@ -71,6 +74,9 @@ const base = {
             loader: 'babel-loader',
             include: [
                 path.resolve(__dirname, 'src'),
+                path.resolve(__dirname, '../scratch-vm/src'),
+                path.resolve(__dirname, '../scratch-render/src'),
+                /node_modules[\\/]three[\\/]/,
                 /node_modules[\\/]scratch-[^\\/]+[\\/]src/,
                 /node_modules[\\/]pify/,
                 /node_modules[\\/]@vernier[\\/]godirect/

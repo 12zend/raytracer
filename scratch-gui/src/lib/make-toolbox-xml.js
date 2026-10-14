@@ -772,13 +772,13 @@ const xmlClose = '</xml>';
  * @param {?object} colors - The colors for the theme.
  * @returns {string} - a ScratchBlocks-style XML document for the contents of the toolbox.
  */
+// costumeName and backdropName are kept for API compatibility; only the removed Looks palette used them.
 const makeToolboxXML = function (isInitialSetup, isStage = true, targetId, categoriesXML = [],
+    // eslint-disable-next-line no-unused-vars
     costumeName = '', backdropName = '', soundName = '', colors = defaultBlockColors) {
     isStage = isInitialSetup || isStage;
     const gap = [categorySeparator];
 
-    costumeName = xmlEscape(costumeName);
-    backdropName = xmlEscape(backdropName);
     soundName = xmlEscape(soundName);
 
     categoriesXML = categoriesXML.slice();
@@ -791,13 +791,11 @@ const makeToolboxXML = function (isInitialSetup, isStage = true, targetId, categ
         }
         // return `undefined`
     };
-    const motionXML = moveCategory('motion') || motion(isInitialSetup, isStage, targetId, colors.motion);
-    const looksXML = moveCategory('looks') ||
-        looks(isInitialSetup, isStage, targetId, costumeName, backdropName, colors.looks);
+    // Motion, Looks and Sensing are not part of the raytracer palette; drop them even if an extension supplies them.
+    ['motion', 'looks', 'sensing'].forEach(moveCategory);
     const soundXML = moveCategory('sound') || sound(isInitialSetup, isStage, targetId, soundName, colors.sounds);
     const eventsXML = moveCategory('event') || events(isInitialSetup, isStage, targetId, colors.event);
     const controlXML = moveCategory('control') || control(isInitialSetup, isStage, targetId, colors.control);
-    const sensingXML = moveCategory('sensing') || sensing(isInitialSetup, isStage, targetId, colors.sensing);
     const operatorsXML = moveCategory('operators') || operators(isInitialSetup, isStage, targetId, colors.operators);
     const variablesXML = moveCategory('data') || variables(isInitialSetup, isStage, targetId, colors.data);
     const myBlocksXML = moveCategory('procedures') || myBlocks(isInitialSetup, isStage, targetId, colors.more);
@@ -811,12 +809,10 @@ const makeToolboxXML = function (isInitialSetup, isStage = true, targetId, categ
 
     const everything = [
         xmlOpen,
-        motionXML, gap,
-        looksXML, gap,
         soundXML, gap,
         eventsXML, gap,
         controlXML, gap,
-        sensingXML, gap,
+
         operatorsXML, gap,
         variablesXML, gap,
         myBlocksXML

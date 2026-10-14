@@ -7,6 +7,7 @@ import VM from 'scratch-vm';
 import AssetPanel from '../components/asset-panel/asset-panel.jsx';
 import PaintEditorWrapper from './paint-editor-wrapper.jsx';
 import {connect} from 'react-redux';
+import log from '../lib/log.js';
 import {handleFileUpload, costumeUpload} from '../lib/file-uploader.js';
 import errorBoundaryHOC from '../lib/error-boundary-hoc.jsx';
 import DragConstants from '../lib/drag-constants';
@@ -35,6 +36,8 @@ import surpriseIcon from '../components/action-menu/icon--surprise.svg';
 import searchIcon from '../components/action-menu/icon--search.svg';
 
 import {getCostumeLibrary, getBackdropLibrary} from '../lib/libraries/tw-async-libraries';
+
+const RAYTRACER_MEDIA = /\.(obj|fbx|glb|pmx|vmd|vpd|mp4|ttf|otf|woff2?)$/i;
 
 let messages = defineMessages({
     addLibraryBackdropMsg: {
@@ -197,19 +200,46 @@ class CostumeTab extends React.Component {
     handleCostumeUpload (e) {
         const vm = this.props.vm;
         const targetId = this.props.vm.editingTarget.id;
+        const input = e.target;
+        const files = Array.from(input.files);
+        // Images stay costumes; models, motion, video and fonts go to the raytracer scene assets.
+        const media = files.filter(file => RAYTRACER_MEDIA.test(file.name));
+        const images = files.filter(file => !media.includes(file));
         this.props.onShowImporting();
-        handleFileUpload(e.target, (buffer, fileType, fileName, fileIndex, fileCount) => {
-            costumeUpload(buffer, fileType, vm, vmCostumes => {
-                vmCostumes.forEach((costume, i) => {
-                    costume.name = `${fileName}${i ? i + 1 : ''}`;
-                });
-                this.handleNewCostume(vmCostumes, false, targetId).then(() => {
-                    if (fileIndex === fileCount - 1) {
-                        this.props.onCloseImporting();
-                    }
-                });
-            }, this.props.onCloseImporting);
-        }, this.props.onCloseImporting);
+        const imagesDone = images.length ? new Promise(resolve => {
+            const imageInput = {
+                files: images,
+                set value (value) {
+                    input.value = value;
+                }
+            };
+            handleFileUpload(imageInput, (buffer, fileType, fileName, fileIndex, fileCount) => {
+                costumeUpload(buffer, fileType, vm, vmCostumes => {
+                    vmCostumes.forEach((costume, i) => {
+                        costume.name = `${fileName}${i ? i + 1 : ''}`;
+                    });
+                    this.handleNewCostume(vmCostumes, false, targetId).then(() => {
+                        if (fileIndex === fileCount - 1) resolve();
+                    });
+                }, resolve);
+            }, resolve);
+        }) : Promise.resolve();
+        // Models import after images so their textures can be found among the new costumes.
+        imagesDone
+            .then(async () => {
+                for (const file of media) {
+                    await vm.runtime.raytracer.scene.import(file.name, await file.arrayBuffer());
+                }
+                if (media.length) vm.runtime.emitProjectChanged();
+            })
+            .catch(error => {
+                log.error(error);
+                alert(error.message); // eslint-disable-line no-alert
+            })
+            .finally(() => {
+                input.value = null;
+                this.props.onCloseImporting();
+            });
     }
     handleFileUploadClick () {
         this.fileInput.click();
@@ -285,7 +315,8 @@ class CostumeTab extends React.Component {
                         title: intl.formatMessage(addFileMessage),
                         img: fileUploadIcon,
                         onClick: this.handleFileUploadClick,
-                        fileAccept: '.svg, .png, .bmp, .jpg, .jpeg, .jfif, .webp, .gif',
+                        fileAccept: '.svg, .png, .bmp, .jpg, .jpeg, .jfif, .webp, .gif, ' +
+                            '.obj, .fbx, .glb, .pmx, .vmd, .vpd, .mp4, .ttf, .otf, .woff, .woff2',
                         fileChange: this.handleCostumeUpload,
                         fileInput: this.setFileInput,
                         fileMultiple: true

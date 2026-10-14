@@ -1,3 +1,5 @@
+import installGPUBlocks from 'scratch-blocks/raytracer';
+import GPUEditor from '../components/raytracer/gpu-editor.jsx';
 import bindAll from 'lodash.bindall';
 import debounce from 'lodash.debounce';
 import defaultsDeep from 'lodash.defaultsdeep';
@@ -122,7 +124,12 @@ class Blocks extends React.Component {
             'onWorkspaceMetricsChange',
             'setBlocks',
             'setLocale',
-            'handleEnableProcedureReturns'
+            'handleEnableProcedureReturns',
+            'openGPUEditor',
+            'handleCreateGPUDefinition',
+            'showGPUError',
+            'handleCloseGPUEditor',
+            'handleCloseGPUError'
         ]);
         this.ScratchBlocks.prompt = this.handlePromptStart;
         this.ScratchBlocks.statusButtonCallback = this.handleConnectionModalStart;
@@ -233,6 +240,8 @@ class Blocks extends React.Component {
     shouldComponentUpdate (nextProps, nextState) {
         return (
             this.state.prompt !== nextState.prompt ||
+            this.state.gpuEditor !== nextState.gpuEditor ||
+            this.state.gpuError !== nextState.gpuError ||
             this.props.isVisible !== nextProps.isVisible ||
             this._renderedToolboxXML !== nextProps.toolboxXML ||
             this.props.extensionLibraryVisible !== nextProps.extensionLibraryVisible ||
@@ -350,7 +359,41 @@ class Blocks extends React.Component {
         }
     }
 
+    openGPUEditor () {
+        this.setState({gpuEditor: true});
+    }
+    showGPUError (message) {
+        this.setState({gpuError: message});
+    }
+    handleCloseGPUEditor () {
+        this.setState({gpuEditor: false});
+    }
+    handleCloseGPUError () {
+        this.setState({gpuError: null});
+    }
+    handleCreateGPUDefinition (name, params) {
+        name = name.trim();
+        const invalidParam = p => !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(p.name) || ['uv', 'buffer'].includes(p.name);
+        if (!name || params.some(invalidParam) || new Set(params.map(p => p.name)).size !== params.length) {
+            throw new Error('Use unique argument names; uv and buffer are reserved.');
+        }
+        if (this.workspace.getTopBlocks(false).some(b => b.type === 'rtgpu_define' && b.gpuName === name)) {
+            throw new Error('GPU block name already exists.');
+        }
+        installGPUBlocks(this.ScratchBlocks);
+        const mutation = document.createElement('mutation');
+        mutation.setAttribute('name', name); mutation.setAttribute('params', JSON.stringify(params));
+        const xml = document.createElement('xml');
+        const node = document.createElement('block');
+        node.setAttribute('type', 'rtgpu_define'); node.setAttribute('x', '100'); node.setAttribute('y', '100');
+        node.appendChild(mutation); xml.appendChild(node);
+        this.ScratchBlocks.Xml.domToWorkspace(xml, this.workspace);
+        this.setState({gpuEditor: false});
+        setTimeout(() => this.props.updateToolboxState(this.getToolboxXML()), 0);
+    }
     attachVM () {
+        this.props.vm.runtime.on('RAYTRACER_CREATE_GPU', this.openGPUEditor);
+        this.props.vm.runtime.on('RAYTRACER_ERROR', this.showGPUError);
         this.workspace.addChangeListener(this.props.vm.blockListener);
         this.flyoutWorkspace = this.workspace
             .getFlyout()
@@ -371,6 +414,8 @@ class Blocks extends React.Component {
         this.props.vm.addListener('PERIPHERAL_DISCONNECTED', this.handleStatusButtonUpdate);
     }
     detachVM () {
+        this.props.vm.runtime.removeListener('RAYTRACER_CREATE_GPU', this.openGPUEditor);
+        this.props.vm.runtime.removeListener('RAYTRACER_ERROR', this.showGPUError);
         this.props.vm.removeListener('SCRIPT_GLOW_ON', this.onScriptGlowOn);
         this.props.vm.removeListener('SCRIPT_GLOW_OFF', this.onScriptGlowOff);
         this.props.vm.removeListener('BLOCK_GLOW_ON', this.onBlockGlowOn);
@@ -452,6 +497,20 @@ class Blocks extends React.Component {
                 this.props.vm.runtime.getBlocksXML(target),
                 this.props.theme
             );
+            const gpuCategory = dynamicBlocksXML.find(c => c.id === 'rtgpu');
+            if (gpuCategory) {
+                const escape = value => String(value).replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/"/g, '&quot;');
+                const calls = target.blocks.getScripts().map(id => target.blocks.getBlock(id))
+                    .filter(b => b.opcode === 'rtgpu_define' && b.mutation)
+                    .map(b => `<block type="rtgpu_call"><mutation name="${escape(b.mutation.name)}" ` +
+                        `params="${escape(b.mutation.params)}"/><value name="BUFFER"><shadow type="text">` +
+                        '<field name="TEXT">main</field></shadow></value></block>')
+                    .join('');
+                gpuCategory.xml = gpuCategory.xml.replace('</category>',
+                    `${calls}<block type="rtgpu_argument"/><block type="procedures_return"/></category>`);
+            }
             return makeToolboxXML(false, target.isStage, target.id, dynamicBlocksXML,
                 targetCostumes[targetCostumes.length - 1].name,
                 stageCostumes[stageCostumes.length - 1].name,
@@ -565,6 +624,7 @@ class Blocks extends React.Component {
                 .map(fieldTypeName => categoryInfo.customFieldTypes[fieldTypeName].scratchBlocksDefinition));
         defineBlocks(categoryInfo.menus);
         defineBlocks(categoryInfo.blocks);
+        installGPUBlocks(this.ScratchBlocks);
 
         // Update the toolbox with new blocks if possible
         const toolboxXML = this.getToolboxXML();
@@ -693,6 +753,16 @@ class Blocks extends React.Component {
         /* eslint-enable no-unused-vars */
         return (
             <React.Fragment>
+                {this.state.gpuEditor ? <GPUEditor
+                    onClose={this.handleCloseGPUEditor}
+                    onCreate={this.handleCreateGPUDefinition}
+                /> : null}
+                {this.state.gpuError ? <div
+                    role="alert"
+                    style={{position: 'absolute', zIndex: 100, background: '#fff0f0', padding: 12}}
+                >{'GPU: '}{this.state.gpuError}
+                    <button onClick={this.handleCloseGPUError}>{'Close'}</button>
+                </div> : null}
                 <DroppableBlocks
                     componentRef={this.setBlocks}
                     onDrop={this.handleDrop}
