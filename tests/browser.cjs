@@ -71,5 +71,22 @@ await page.locator('input[type=file][accept*=".obj"]').setInputFiles([
 await page.waitForFunction(()=>window.vm.runtime.raytracer.scene.items.some(i=>i.name==='upload-model.obj'));
 const uploaded=await page.evaluate(()=>({costumes:window.vm.editingTarget.getCostumes().map(c=>c.name),media:window.vm.runtime.raytracer.scene.items.map(i=>i.name)}));
 console.log('upload',uploaded);assert.ok(uploaded.costumes.includes('upload-texture'));assert.ok(!uploaded.media.includes('upload-texture.png'));
+// Scene assets are listed after costumes with a read-only preview; they can be exported and deleted.
+const assetItem=page.locator('[class*=sprite-selector-item_sprite-selector-item]',{hasText:'upload-model.obj'});
+await assetItem.waitFor();
+assert.match(await assetItem.innerText(),/Model · OBJ/);
+await assetItem.click();
+await page.locator('[class*=asset-preview_wrapper]').getByText('Read-only',{exact:true}).waitFor();
+assert.equal(await page.locator('[class*=asset-preview_model]').count(),1);
+await page.waitForTimeout(500);
 await page.screenshot({path:process.env.SCREENSHOT || '/tmp/raytracer-running.png'});
+const download=page.waitForEvent('download');
+await assetItem.click({button:'right'});
+await page.locator('.react-contextmenu--visible').getByText('export',{exact:true}).click();
+assert.equal((await download).suggestedFilename(),'upload-model.obj');
+await assetItem.click({button:'right'});
+assert.equal(await page.locator('.react-contextmenu--visible').getByText('duplicate',{exact:true}).count(),0);
+await page.locator('.react-contextmenu--visible').getByText('delete',{exact:true}).click();
+await page.waitForFunction(()=>!window.vm.runtime.raytracer.scene.items.some(i=>i.name==='upload-model.obj'));
+assert.equal(await assetItem.count(),0);
 }finally{await browser.close();}})().catch(e=>{console.error(e);process.exit(1);});
