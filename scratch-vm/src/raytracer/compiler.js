@@ -40,6 +40,11 @@ const SIDE_EFFECT = new RegExp([
     '^control_(create_clone_of|delete_this_clone|clear_counter|incr_counter)$',
     '^data_(show|hide)(variable|list)$'
 ].join('|'));
+// Lists: read-only lists are textures of any length; lists changed by the GPU block are copied into
+// an array per pixel, sized by the CPU list's length.
+const LIST_WRITES = ['data_addtolist', 'data_deleteoflist', 'data_deletealloflist', 'data_insertatlist', 'data_replaceitemoflist'];
+const LIST_CAPACITY = [256, 1024];
+const MAX_LISTS = 8;
 // Placeholder for “stop this script”; becomes the function's default value once its type is known.
 const DEFAULT_RETURN = '/*default*/';
 const operators = new Operators(null);
@@ -85,7 +90,9 @@ const valueType = value => {
     }
     return 'invalid';
 };
+const listCapacity = items => LIST_CAPACITY.find(c => items.length <= c) || 'large';
 const slotType = (slot, value) => {
+    if (slot.kind === 'list') return `list:${listCapacity(value)}`;
     const type = valueType(value);
     return type === 'string' ? `string:${value}` : type;
 };
@@ -100,6 +107,10 @@ const readSlot = (slot, env) => {
         const value = env ? env.variable(slot.field) : null;
         // A variable that does not exist yet reads as 0, as in Scratch.
         return value === null || typeof value === 'undefined' ? 0 : value;
+    }
+    if (slot.kind === 'list') {
+        const items = env ? env.list(slot.field) : null;
+        return Array.isArray(items) ? items : [];
     }
     if (!env) throw new RaytracerError('This GPU block reads the project, so it can only run in the editor.', slot.blockId);
     return env.host(slot.opcode, slot.args);
@@ -145,6 +156,7 @@ class GPUCompiler {
         this.blocks = blocks;
         this.env = env;
         this.vars = new Map();
+        this.lists = new Map();
         this.slots = [];
         this.slotKeys = new Map();
         this.functions = [];
@@ -168,19 +180,28 @@ class GPUCompiler {
             this.scope.set(p.name, {type: p.type, code: `arg${i}`});
         });
         this.fn = {returnType: 'vec4'};
+        this.changedLists = this.scanListWrites(definition.next);
         const body = this.stack(definition.next)
             .split(DEFAULT_RETURN)
             .join('vec4(0)');
         const uniforms = this.slots
             .filter(s => s.uniform)
-            .map(s => `uniform ${s.type} ${s.uniform};`);
-        const globals = Array.from(this.vars.values())
-            .filter(v => v.code)
-            .map(v => `${v.type} ${v.code};`);
-        const init = Array.from(this.vars.values())
-            .filter(v => v.code)
-            .map(v => `${v.code}=${this.initial(v)};\n`)
-            .join('');
+            .map(s => (s.type === 'list' ?
+                `uniform sampler2D ${s.uniform};\nuniform int ${s.uniform}_length;` :
+                `uniform ${s.type} ${s.uniform};`));
+        const lists = Array.from(this.lists.values());
+        const globals = [
+            ...Array.from(this.vars.values())
+                .filter(v => v.code)
+                .map(v => `${v.type} ${v.code};`),
+            ...lists.map(l => l.declarations)
+        ];
+        const init = [
+            ...Array.from(this.vars.values())
+                .filter(v => v.code)
+                .map(v => `${v.code}=${this.initial(v)};\n`),
+            ...lists.map(l => l.init)
+        ].join('');
         return {
             params,
             slots: this.slots,
@@ -269,7 +290,7 @@ class GPUCompiler {
         if (this.slotKeys.has(key)) return this.slotKeys.get(key);
         const value = readSlot(slot, this.env);
         const signature = slotType(slot, value);
-        const type = signature.startsWith('string:') ? 'string' : signature;
+        const type = signature.split(':')[0];
         const s = {...slot, type, signature};
         if (type === 'string') s.value = String(value);
         else if (type !== 'invalid') s.uniform = `host${this.slots.length}`;
@@ -455,6 +476,20 @@ class GPUCompiler {
             }
             return result('float', `dot(${a.code},${c.code})`);
         }
+        if (op === 'data_itemoflist') {
+            const list = this.list(b);
+            return result('float', `${list.get}(${this.listIndex(b, list, false)})`);
+        }
+        if (op === 'data_lengthoflist') return result('float', `float(${this.list(b).length})`);
+        if (op === 'data_itemnumoflist' || op === 'data_listcontainsitem') {
+            const list = this.list(b);
+            const item = input('ITEM');
+            const code = item.type === 'string' ? '0.0' : `${list.find}(${this.coerce(item, 'float', b, 'The item')})`;
+            return op === 'data_itemnumoflist' ? result('float', code) : result('bool', `(${code}>0.0)`);
+        }
+        if (op === 'data_listcontents') {
+            this.error(b, 'A list’s contents are text, which a GPU block cannot use. Use item or length of the list.');
+        }
         if (op.startsWith('operator_')) return this.operator(b);
         if (op === 'procedures_call') {
             const fn = this.callProcedure(b);
@@ -590,6 +625,114 @@ class GPUCompiler {
         const s = this.slot(`cpu:${b.opcode}:${JSON.stringify(args)}`, {kind: 'cpu', opcode: b.opcode, args, blockId: b.id});
         return this.slotValue(s, b);
     }
+    /**
+     * Lists changed anywhere in this GPU block, including the custom blocks it uses.
+     * @param {string} head First block of the definition.
+     * @returns {Set<string>} List keys (id or name).
+     */
+    scanListWrites (head) {
+        const written = new Set();
+        const seen = new Set();
+        const visit = id => {
+            while (id && !seen.has(id)) {
+                seen.add(id);
+                const b = this.blocks.getBlock ? this.blocks.getBlock(id) : this.blocks[id];
+                if (!b) return;
+                if (LIST_WRITES.includes(b.opcode)) written.add(b.fields.LIST.id || b.fields.LIST.value);
+                if (b.opcode === 'procedures_call') {
+                    const d = this.findProcedure(b.mutation.proccode);
+                    if (d) visit(d.next);
+                }
+                for (const i of Object.values(b.inputs || {})) visit(i.block);
+                id = b.next;
+            }
+        };
+        visit(head);
+        return written;
+    }
+    /**
+     * The GPU form of a Scratch list. Items are numbers (text items read as 0). A list the GPU block
+     * changes is copied into an array for each pixel; changes are not written back to the project.
+     * @param {object} b Block with a LIST field.
+     * @returns {object} List record with GLSL helper names.
+     */
+    list (b) {
+        const field = b.fields.LIST;
+        const key = field.id || field.value;
+        if (this.lists.has(key)) return this.lists.get(key);
+        if (this.lists.size >= MAX_LISTS) this.error(b, `A GPU block can use at most ${MAX_LISTS} lists.`);
+        const s = this.slot(`list:${key}`, {kind: 'list', field: {id: field.id, value: field.value}, blockId: b.id});
+        const u = s.uniform;
+        const fetch = `float ${u}_item(int i){int t=i/4,w=textureSize(${u},0).x;return texelFetch(${u},ivec2(t%w,t/w),0)[i%4];}`;
+        let list;
+        if (this.changedLists.has(key)) {
+            const capacity = Number(s.signature.split(':')[1]);
+            if (!capacity) {
+                this.error(b, `“${field.value}” has more than ${LIST_CAPACITY[LIST_CAPACITY.length - 1]} items, so a GPU block cannot change it.`);
+            }
+            const a = `${u}_items`;
+            const n = `${u}_count`;
+            list = {
+                length: n,
+                declarations: [
+                    `float ${a}[${capacity}];int ${n};`,
+                    fetch,
+                    `float ${u}_get(float index){int i=int(floor(index))-1;return i>=0&&i<${n}?${a}[i]:0.0;}`,
+                    `float ${u}_find(float item){for(int i=0;i<${n};i++)if(${a}[i]==item)return float(i+1);return 0.0;}`,
+                    `void ${u}_add(float v){if(${n}<${capacity}){${a}[${n}]=v;${n}++;}}`,
+                    `void ${u}_delete(float index){int i=int(floor(index))-1;if(i<0||i>=${n})return;for(int k=i;k<${n}-1;k++)${a}[k]=${a}[k+1];${n}--;}`,
+                    `void ${u}_insert(float index,float v){int i=int(floor(index))-1;if(i<0||i>${n}||${n}>=${capacity})return;for(int k=${n};k>i;k--)${a}[k]=${a}[k-1];${a}[i]=v;${n}++;}`,
+                    `void ${u}_replace(float index,float v){int i=int(floor(index))-1;if(i>=0&&i<${n})${a}[i]=v;}`
+                ].join('\n'),
+                init: `${n}=min(${u}_length,${capacity});for(int i=0;i<${n};i++)${a}[i]=${u}_item(i);\n`
+            };
+        } else {
+            const n = `${u}_length`;
+            list = {
+                length: n,
+                declarations: [
+                    fetch,
+                    `float ${u}_get(float index){int i=int(floor(index))-1;return i>=0&&i<${n}?${u}_item(i):0.0;}`,
+                    `float ${u}_find(float item){for(int i=0;i<${n};i++)if(${u}_item(i)==item)return float(i+1);return 0.0;}`
+                ].join('\n'),
+                init: ''
+            };
+        }
+        list = {...list, name: u, get: `${u}_get`, find: `${u}_find`};
+        this.lists.set(key, list);
+        return list;
+    }
+    /**
+     * A list position as Scratch reads it: a number (rounded down), last, or random / any.
+     * @param {object} b Block with an INDEX input.
+     * @param {object} list List record.
+     * @param {boolean} insert Whether the position may be one past the end (insert).
+     * @returns {string} GLSL float position (out-of-range positions do nothing).
+     */
+    listIndex (b, list, insert) {
+        const v = this.input(b, 'INDEX');
+        const length = `float(${list.length}${insert ? '+1' : ''})`;
+        if (known(v) && typeof v.constant === 'string') {
+            if (v.constant === 'last') return length;
+            if (v.constant === 'random' || v.constant === 'any') return `(floor(randomFloat()*${length})+1.0)`;
+            if (v.constant === 'all') return '0.0';
+        }
+        return this.coerce(v, 'float', b, 'The position');
+    }
+    listStatement (b) {
+        const op = b.opcode;
+        const list = this.list(b);
+        const item = () => this.coerce(this.input(b, 'ITEM'), 'float', b, 'The item');
+        if (op === 'data_deletealloflist') return `${list.length}=0;\n`;
+        if (op === 'data_addtolist') return `${list.name}_add(${item()});\n`;
+        if (op === 'data_deleteoflist') {
+            const v = this.input(b, 'INDEX');
+            if (known(v) && v.constant === 'all') return `${list.length}=0;\n`;
+            return `${list.name}_delete(${this.listIndex(b, list, false)});\n`;
+        }
+        if (op === 'data_insertatlist') return `${list.name}_insert(${this.listIndex(b, list, true)},${item()});\n`;
+        return `${list.name}_replace(${this.listIndex(b, list, false)},${item()});\n`;
+    }
     findProcedure (proccode) {
         if (!this.procedureDefinitions) {
             this.procedureDefinitions = new Map();
@@ -696,6 +839,8 @@ class GPUCompiler {
                     const target = this.writeVariable(field, value, b);
                     code += `${target.code}=${this.coerce(value, target.type, b, `“${field.value}”`)};\n`;
                 }
+            } else if (LIST_WRITES.includes(op)) {
+                code += this.listStatement(b);
             } else if (op === 'control_repeat') {
                 const count = this.coerce(input('TIMES'), 'float', b, 'The count');
                 code += this.loop(`int(clamp(floor(${count}+0.5),0.0,${LOOP_LIMIT}.0))`, () => sub('SUBSTACK'));
@@ -757,7 +902,18 @@ GPUCompiler.uniforms = (compiled, values) => {
     compiled.slots.forEach((s, i) => {
         const value = values[i];
         if (!s.uniform) return;
-        if (s.type === 'Hit') {
+        if (s.type === 'list') {
+            // Four items per texel; text items read as 0, as in Scratch arithmetic.
+            const texels = Math.max(1, Math.ceil(value.length / 4));
+            const width = Math.min(texels, 2048);
+            const height = Math.ceil(texels / width);
+            const data = new Float32Array(width * height * 4);
+            value.forEach((item, k) => {
+                data[k] = Cast.toNumber(item);
+            });
+            uniforms[s.uniform] = {type: 'list', value: data, width, height};
+            uniforms[`${s.uniform}_length`] = {type: 'int', value: value.length};
+        } else if (s.type === 'Hit') {
             for (const [k, type] of Object.entries(HIT_FIELDS)) {
                 uniforms[`${s.uniform}.${k}`] = {type, value: type === 'bool' ? !!value[k] : (type === 'float' ? Number(value[k]) : value[k])};
             }

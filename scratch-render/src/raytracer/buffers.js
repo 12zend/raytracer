@@ -206,11 +206,17 @@ class RayBuffers {
         );
         g.uniform1i(g.getUniformLocation(p, 'nodeCount'), this.nodeCount || 0);
         if (this.atlas) this.bindTexture(p, 'mediaAtlas', this.atlas, 3);
+        // Lists arrive as packed float data; their textures live for this draw only.
+        const temporary = [];
         for (const [key, u] of Object.entries(uniforms)) {
             const loc = g.getUniformLocation(p, key),
                 v = u.value;
-            if (u.type === 'float') g.uniform1f(loc, Number(v));
-            else if (u.type === 'bool') g.uniform1i(loc, v ? 1 : 0);
+            if (u.type === 'list') {
+                const t = this.texture(v, u.width, u.height);
+                temporary.push(t);
+                this.bindTexture(p, key, t, 3 + temporary.length);
+            } else if (u.type === 'float') g.uniform1f(loc, Number(v));
+            else if (u.type === 'int' || u.type === 'bool') g.uniform1i(loc, Number(v));
             else
                 g[`uniform${u.type.slice(3)}fv`](
                     loc,
@@ -222,6 +228,7 @@ class RayBuffers {
                 );
         }
         g.drawArrays(g.TRIANGLES, 0, 3);
+        for (const t of temporary) g.deleteTexture(t);
         b.front = 1 - b.front;
     }
     pixel(name, uv, color) {

@@ -146,6 +146,10 @@ class RayRuntime {
                 const v = target.lookupVariableById(field.id) || target.lookupVariableByNameAndType(field.value, '');
                 return v ? v.value : null;
             },
+            list: field => {
+                const v = target.lookupVariableById(field.id) || target.lookupVariableByNameAndType(field.value, 'list');
+                return v ? v.value : null;
+            },
             host: (opcode, args) => {
                 const fn = runtime.getOpcodeFunction(opcode);
                 if (!fn) throw new RaytracerError('This block cannot run inside a GPU block.');

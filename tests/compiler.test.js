@@ -331,3 +331,39 @@ test('sensing and motion reporters are read on the CPU for every call', () => {
     assert.match(withHit.source, /uniform Hit host0;/);
     assert.equal(Compiler.uniforms(withHit, [hit])['host0.hit_position'].type, 'vec3');
 });
+test('lists: read-only lists are textures, changed lists are copied per pixel', () => {
+    const b = sample();
+    const list = name => ({LIST: {value: name, id: name}});
+    const listEnv = lists => ({variable: () => 0, list: field => lists[field.value], host: () => 0});
+    // return vec4 (item (last) of xs) (length of xs) (item # of 2 in xs) 1
+    b.v.inputs.X.block = 'item';
+    b.item = block('item', 'data_itemoflist', {INDEX: 'last'}, list('xs'));
+    b.last = text('last', 'last');
+    b.v.inputs.Y.block = 'len';
+    b.len = block('len', 'data_lengthoflist', {}, list('xs'));
+    b.v.inputs.Z.block = 'find';
+    b.find = block('find', 'data_itemnumoflist', {ITEM: 'two'}, list('xs'));
+    b.two = n('two', 2);
+    const compiled = new Compiler().compile(b, b.d, [], listEnv({xs: [1, '2', 'abc']}));
+    assert.match(compiled.source, /uniform sampler2D host0;\nuniform int host0_length;/);
+    assert.match(compiled.source, /return vec4\(host0_get\(float\(host0_length\)\),float\(host0_length\),host0_find\(2\.0\),1\.0\);/);
+    const u = Compiler.uniforms(compiled, [[1, '2', 'abc', 4, 5]]);
+    assert.deepEqual(Array.from(u.host0.value), [1, 2, 0, 4, 5, 0, 0, 0]);
+    assert.deepEqual([u.host0.width, u.host0.height, u.host0_length.value], [2, 1, 5]);
+    // Changing the list (here inside a custom block) makes it a per-pixel array sized by the CPU list.
+    b.d.next = 'add';
+    b.add = block('add', 'data_addtolist', {ITEM: 'two'}, list('xs'), {next: 'ins'});
+    b.ins = block('ins', 'data_insertatlist', {ITEM: 'two', INDEX: 'rnd'}, list('xs'), {next: 'del'});
+    b.rnd = text('rnd', 'random');
+    b.all = text('all', 'all');
+    b.del = block('del', 'data_deleteoflist', {INDEX: 'all'}, list('xs'), {next: 'r'});
+    const changed = new Compiler().compile(b, b.d, [], listEnv({xs: [1, 2]})).source;
+    assert.match(changed, /float host0_items\[256\];int host0_count;/);
+    assert.match(kernel(changed), /host0_count=min\(host0_length,256\);for\(int i=0;i<host0_count;i\+\+\)host0_items\[i\]=host0_item\(i\);\nhost0_add\(2\.0\);\nhost0_insert\(\(floor\(randomFloat\(\)\*float\(host0_count\+1\)\)\+1\.0\),2\.0\);\nhost0_count=0;/);
+    assert.match(new Compiler().compile(b, b.d, [], listEnv({xs: new Array(300).fill(0)})).source, /float host0_items\[1024\]/);
+    assert.equal(new Compiler().compile(b, b.d, [], listEnv({xs: new Array(300).fill(0)})).signature, 'list:1024');
+    assert.throws(() => new Compiler().compile(b, b.d, [], listEnv({xs: new Array(2000).fill(0)})), e => e.blockId === 'add' && /more than 1024 items/.test(e.message));
+    b.r.inputs.VALUE.block = 'contents';
+    b.contents = block('contents', 'data_listcontents', {}, list('xs'));
+    assert.throws(() => new Compiler().compile(b, b.d, [], listEnv({xs: []})), /contents are text/);
+});
