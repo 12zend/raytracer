@@ -1,3 +1,9 @@
+// set_x(v, f) .. set_w(v, f): copy of v with one component replaced (Insert prop on a vector).
+const setters = [2, 3, 4]
+    .map(n => ['x', 'y', 'z', 'w'].slice(0, n)
+        .map(k => `vec${n} set_${k}(vec${n} v,float f){v.${k}=f;return v;}`)
+        .join('\n'))
+    .join('\n');
 module.exports = `
 struct Hit { bool hit; vec3 hit_position; vec3 normal; vec4 diffuse; float distance; float object_id; };
 uniform sampler2D mediaAtlas;
@@ -8,6 +14,7 @@ uniform int nodeCount;
 uniform vec2 resolution;
 uniform float sampleSeed;
 float seed;
+${setters}
 float randomFloat(){seed+=1.0;return fract(sin(dot(gl_FragCoord.xy+vec2(seed,seed*0.37),vec2(12.9898,78.233)))*43758.5453);}
 vec4 fetchData(sampler2D tex,int i){int w=textureSize(tex,0).x;return texelFetch(tex,ivec2(i%w,i/w),0);}
 bool boxHit(vec3 o,vec3 d,vec3 low,vec3 high,float nearest){

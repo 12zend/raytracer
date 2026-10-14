@@ -91,3 +91,22 @@ test('hit? is a boolean condition and rejects non-hit values', () => {
     b.h.inputs.RAY.block = 'n';
     assert.throws(() => new Compiler().compile(b, b.d), e => e.blockId === 'h' && /needs a ray hit/.test(e.message));
 });
+test('Insert prop sets or appends a vector component', () => {
+    const b = sample();
+    b.p = prototype('kernel %s', ['focal']);
+    b.d.next = 's';
+    // set rd to normalize(insert uv z = focal), as in a camera ray setup.
+    b.s = {id: 's', opcode: 'data_setvariableto', inputs: {VALUE: {block: 'norm'}}, fields: {VARIABLE: {value: 'rd', id: 'rd'}}, next: 'r'};
+    b.norm = {id: 'norm', opcode: 'rtgpu_normalize', inputs: {V: {block: 'i'}}};
+    b.i = {id: 'i', opcode: 'rtobject_insert', inputs: {OBJ: {block: 'uv'}, IDX: {block: 'key'}, PROP: {block: 'f'}}};
+    b.uv = argument('uv', 'uv');
+    b.f = argument('f', 'focal');
+    b.key = {id: 'key', opcode: 'text', fields: {TEXT: {value: 'z'}}, inputs: {}};
+    assert.match(new Compiler().compile(b, b.d, ['float']).source, /vec3 local0=vec3\(0\);\nlocal0=normalize\(vec3\(uv,arg0\)\);/);
+    b.key.fields.TEXT.value = 'g';
+    assert.match(new Compiler().compile(b, b.d, ['float']).source, /local0=normalize\(set_y\(uv,arg0\)\);/);
+    b.key.fields.TEXT.value = 'w';
+    assert.throws(() => new Compiler().compile(b, b.d, ['float']), e => e.blockId === 'i' && /cannot take the key “w”\. Use x, y, z/.test(e.message));
+    b.i.inputs.OBJ.block = 'f';
+    assert.throws(() => new Compiler().compile(b, b.d, ['float']), /needs a vector, but got a number/);
+});

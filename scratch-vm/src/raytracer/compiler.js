@@ -165,6 +165,24 @@ class GPUCompiler {
             }
             return result(fields[prop], `(${v.code}).${prop}`);
         }
+        if (op === 'rtobject_insert') {
+            // On the GPU only vectors can take a new property: a component key sets that component,
+            // and the key right after the last one (z for a vec2) makes a longer vector.
+            const v = input('OBJ');
+            const value = this.require(input('PROP'), 'float', b);
+            const p = this.block(b.inputs.IDX.block);
+            const key = String((p.fields.TEXT || {}).value || '');
+            const keys = ['x', 'y', 'z', 'w'];
+            const k = keys.indexOf({r: 'x', g: 'y', b: 'z', a: 'w'}[key] || key);
+            const n = /^vec[234]$/.test(v.type) ? Number(v.type.slice(3)) : 0;
+            if (!n) this.error(b, `On the GPU, Insert prop needs a vector, but got ${typeName(v.type)}.`);
+            if (k < 0 || k > n || k === 4) {
+                this.error(b, `${typeName(v.type).replace(/^a/, 'A')} cannot take the key “${key}”. Use ${keys.slice(0, Math.min(n + 1, 4)).join(', ')}.`);
+            }
+            return k === n ?
+                result(`vec${n + 1}`, `vec${n + 1}(${v.code},${value})`) :
+                result(v.type, `set_${keys[k]}(${v.code},${value})`);
+        }
         if (op === 'rtray_trace') {
             return result(
                 'Hit',

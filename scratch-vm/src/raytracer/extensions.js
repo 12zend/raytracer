@@ -161,7 +161,10 @@ const methods = {
                 return out;
             }
             const out = Object.assign(Object.create(null), validObject(a.OBJ));
-            out[String(a.IDX)] = a.PROP;
+            // r, g, b, a name vector components, matching Get prop and the GPU.
+            const key = String(a.IDX);
+            const isVector = 'x' in out && 'y' in out;
+            out[(isVector && {r: 'x', g: 'y', b: 'z', a: 'w'}[key]) || key] = a.PROP;
             return out;
         },
         ...Object.fromEntries(
