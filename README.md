@@ -10,9 +10,11 @@ GUI が入口、通常の制御は JS、GPU 定義は WebGL 2 のフラグメン
 - `scratch-render`: WebGL 2 buffer renderer
 - `scratch-blocks`: block editor
 
-各ディレクトリは元の Git 履歴・ライセンスを保持する submodule です。
-ローカルの変更は各 submodule 内にコミットし、親リポジトリはそのコミットを記録します。
-未公開のローカルコミットがあるため、他の環境に移す際は submodule の変更も共有してください。
+4 つのディレクトリは TurboWarp の各リポジトリを取り込んだ通常のディレクトリで、
+変更はこのリポジトリに直接コミットします（各ディレクトリのライセンスはそのまま有効です）。
+取り込み元の上流コミットは `chore(workspace): vendor TurboWarp sources as plain directories`
+のコミットメッセージに記録しています。上流の更新を取り込むときは、そのコミットとの差分を
+パッチとして適用してください。
 
 映像の観察と設計判断は `docs/video-study.md` に記録します。
 
