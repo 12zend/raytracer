@@ -1,0 +1,30 @@
+module.exports = `
+struct Hit { bool hit; vec3 hit_position; vec3 normal; vec4 diffuse; float distance; float object_id; };
+uniform sampler2D nodes;
+uniform sampler2D triangles;
+uniform sampler2D previousBuffer;
+uniform int nodeCount;
+uniform vec2 resolution;
+float seed;
+float randomFloat(){seed+=1.0;return fract(sin(dot(gl_FragCoord.xy+vec2(seed,seed*0.37),vec2(12.9898,78.233)))*43758.5453);}
+vec4 fetchData(sampler2D tex,int i){int w=textureSize(tex,0).x;return texelFetch(tex,ivec2(i%w,i/w),0);}
+bool boxHit(vec3 o,vec3 d,vec3 low,vec3 high,float nearest){
+ float lo=0.00001,hi=nearest;
+ for(int k=0;k<3;k++){if(abs(d[k])<1e-12){if(o[k]<low[k]||o[k]>high[k])return false;}
+ else{float a=(low[k]-o[k])/d[k],b=(high[k]-o[k])/d[k];lo=max(lo,min(a,b));hi=min(hi,max(a,b));}}
+ return hi>=lo;
+}
+Hit traceRay(vec3 o,vec3 d){
+ Hit h=Hit(false,vec3(0),vec3(0),vec4(0),-1.0,-1.0);float nearest=1e30;int index=0;
+ while(index<nodeCount){
+  vec4 low=fetchData(nodes,index*3),high=fetchData(nodes,index*3+1);
+  if(!boxHit(o,d,low.xyz,high.xyz,nearest)){index=int(high.w);continue;}
+  int t=int(low.w);
+  if(t>=0){vec4 a=fetchData(triangles,t*4);vec3 b=fetchData(triangles,t*4+1).xyz,c=fetchData(triangles,t*4+2).xyz;
+   vec3 e1=b-a.xyz,e2=c-a.xyz,p=cross(d,e2);float det=dot(e1,p);
+   if(abs(det)>1e-9){vec3 s=o-a.xyz,q=cross(s,e1);float u=dot(s,p)/det,v=dot(d,q)/det,dist=dot(e2,q)/det;
+    if(u>=0.0&&v>=0.0&&u+v<=1.0&&dist>0.00001&&dist<nearest){nearest=dist;h=Hit(true,o+dist*d,normalize(cross(e1,e2)),fetchData(triangles,t*4+3),dist,a.w);}}
+  }index++;
+ }return h;
+}
+`;
